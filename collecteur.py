@@ -90,6 +90,67 @@ def dates_dans(txt):
             pass
     return out
 
+def fiche_acte(b, sig, ds, fin):
+    """Fiche de lecture d'un arrêté : ce qu'il fait, ce qui est fragile, verdict. Lecture mécanique, à vérifier sur le texte."""
+    t = b.lower()
+    f = {"mesure": "", "territoire": "", "periode": "", "base_legale": "", "motivation": "", "points": [], "score": "faible", "verdict": ""}
+    # Ce que l'acte fait
+    mesures = []
+    if re.search(r"interdi\w+ .{0,60}(manifest|rassemblement|cort[eè]ge|attroupement)|(manifest|rassemblement|cort[eè]ge|attroupement)\w* .{0,60}interdi", t): mesures.append("interdiction de manifester / de se rassembler")
+    if re.search(r"couvre[- ]feu", t): mesures.append("couvre-feu" + (" des mineurs" if re.search(r"mineurs? non accompagn", t) else ""))
+    if re.search(r"drone|a[ée]ronef|captation", t): mesures.append("captation d'images par aéronef")
+    if re.search(r"dissimulation du visage|dissimuler .{0,20}visage", t): mesures.append("interdiction de dissimulation du visage")
+    if re.search(r"p[ée]rim[eè]tre .{0,30}(s[ée]curit[ée]|protection)", t): mesures.append("périmètre de sécurité ou de protection")
+    if re.search(r"interdiction .{0,60}circul", t): mesures.append("restriction de circulation")
+    if re.search(r"artifices? de divertissement|carburant|armes? par destination|objets? pouvant constituer une arme", t): mesures.append("interdictions accessoires (artifices, carburants, armes par destination)")
+    f["mesure"] = ", ".join(mesures) or "restriction d'une liberté (nature à préciser)"
+    generale = bool(re.search(r"(tout|toute|tous|toutes)\s+(rassemblement|manifestation|cort[eè]ge|attroupement)", t)) and not re.search(r"d[ée]clar[ée]e? (par|le|la)|organis[ée]e? par|à l.appel de", t)
+    if re.search(r"ensemble (du|de la) (territoire|commune|ville)|sur (tout|l.ensemble du) territoire", t): f["territoire"] = "commune entière"
+    elif re.search(r"centre[- ]ville|hyper[- ]?centre", t): f["territoire"] = "centre-ville" + ("" if re.search(r"annexe|plan|carte|rues? (suivantes?|ci-apr[eè]s)|d[ée]limit", t) else " (périmètre non délimité dans le texte)")
+    elif re.search(r"p[ée]rim[eè]tre", t): f["territoire"] = "périmètre défini" + ("" if re.search(r"annexe|plan|carte|d[ée]limit", t) else " (délimitation non lisible)")
+    else: f["territoire"] = "non précisé"
+    if sig and fin:
+        j = (fin - sig).days
+        f["periode"] = "du %s au %s (%d jour%s)" % (sig.strftime("%d/%m/%Y"), fin.strftime("%d/%m/%Y"), j, "s" if j > 1 else "")
+    elif re.search(r"jusqu.à nouvel ordre|sans limitation de dur[ée]e|durée ind[ée]termin[ée]e", t): f["periode"] = "sans terme fixé"
+    else: f["periode"] = "non reconnue dans le texte"
+    bl = []
+    for rx, lib in ((r"l\.\s*211-?\d*", "CSI, police des manifestations (L. 211)"), (r"l\.\s*2212|l\.\s*2214|l\.\s*2215", "CGCT, pouvoirs de police du maire / du préfet"), (r"l\.\s*242", "CSI, caméras aéroportées (L. 242)"), (r"code de la s[ée]curit[ée] int[ée]rieure", "code de la sécurité intérieure"), (r"code g[ée]n[ée]ral des collectivit[ée]s", "CGCT")):
+        if re.search(rx, t): bl.append(lib)
+    f["base_legale"] = ", ".join(dict.fromkeys(bl)) or "aucune base légale identifiable dans le texte"
+    nb = len(re.findall(r"\bconsid[ée]rant\b", t))
+    mc = re.search(r"\bconsid[ée]rant\b.*?(?=\n\s*(arr[êe]te|article 1|art\. 1)|$)", t, re.S)
+    zone = mc.group(0) if mc else ""
+    circ = bool(re.search(r"renseignement|signal[ée]|appels? (à la|sur les r[ée]seaux)|pr[ée]c[ée]dent[s]? (violence|d[ée]gradation)|d[ée]gradations? (constat|commis)|(le|les|du) \d{1,2} (septembre|octobre|novembre|d[ée]cembre|janvier|f[ée]vrier|mars|avril|mai|juin|juillet|ao[uû]t) \d{4}.{0,80}(violence|d[ée]gradation|incident|heurt|affrontement)", zone))
+    f["motivation"] = ("%d considérant%s" % (nb, "s" if nb > 1 else "")) + (", avec des faits circonstanciés" if circ else ", sans fait précis ni daté cité") if nb else "aucun considérant"
+    # Ce qui est fragile : constat -> pourquoi ça compte -> à vérifier
+    P = f["points"]
+    def pt(titre, pourquoi, verifier, poids): P.append({"titre": titre, "pourquoi": pourquoi, "verifier": verifier, "poids": poids})
+    if generale: pt("Interdiction générale, sans manifestation visée", "Le juge exige qu'une interdiction soit nécessaire, adaptée et proportionnée au risque, pas une interdiction de principe (CE, 19 mai 1933, Benjamin).", "Existe-t-il une déclaration de manifestation ? L'arrêté cite-t-il un événement précis ?", 3)
+    if f["territoire"].startswith("commune entière"): pt("Champ territorial : toute la commune", "Un risque localisé ne justifie pas une interdiction sur tout le territoire communal.", "Où se situent les risques invoqués ? Un périmètre restreint aurait-il suffi ?", 2)
+    if "non délimité" in f["territoire"] or "non lisible" in f["territoire"]: pt("Périmètre imprécis", "Une interdiction dont les limites ne sont pas lisibles ne permet pas au citoyen de savoir où il peut aller : imprécision et insécurité juridique.", "Le plan annexé existe-t-il ? A-t-il été publié avec l'arrêté ?", 2)
+    if sig and fin and (fin - sig).days >= 3: pt("Durée de %d jours" % (fin - sig).days, "Une mesure de police doit être limitée au temps du risque ; un événement ponctuel ne justifie pas plusieurs jours.", "L'arrêté explique-t-il pourquoi le risque persiste au-delà de la journée ?", 2)
+    if f["periode"] == "sans terme fixé": pt("Mesure sans terme", "Une restriction de liberté sans limite de durée est en principe illégale.", "Le texte prévoit-il une date ou une condition de fin ?", 3)
+    if nb == 0: pt("Aucun considérant", "Les mesures de police qui restreignent une liberté doivent être motivées en droit et en fait (art. L. 211-2 et L. 211-5 CRPA).", "La motivation est-elle dans un document distinct ?", 3)
+    elif not circ: pt("Motivation de pure forme", "Le juge écarte les motivations générales (\"risques de troubles\") non étayées par des faits précis.", "Quels faits concrets, datés, l'administration peut-elle produire ?", 2)
+    if f["base_legale"].startswith("aucune"): pt("Base légale non citée", "Sans visa de la base légale, incompétence ou erreur de droit possibles.", "Quel texte l'autorité pouvait-elle invoquer, et l'a-t-elle fait ailleurs ?", 2)
+    if sig and ds:
+        debut = min((d for d in ds if d >= sig), default=None)
+        if debut and (debut - sig).days <= 1: pt("Signé la veille ou le jour même", "Publication tardive : prive du temps utile pour saisir le juge, ce qui pèse dans l'urgence du référé et peut constituer un vice de publicité.", "Date et mode de publication réels (RAA, affichage, site) ?", 2)
+    if "captation" in f["mesure"]: pt("Captation par aéronef", "L'art. L. 242-5 CSI impose finalité précise, durée et périmètre strictement nécessaires, information du public, et absence d'autre moyen.", "L'arrêté justifie-t-il chacune de ces conditions ?", 2)
+    if "dissimulation" in f["mesure"]: pt("Dissimulation du visage", "Interdiction admise seulement si limitée dans le temps et l'espace et justifiée par des risques précis.", "Périmètre, durée, motifs propres à cette mesure ?", 1)
+    if "mineurs" in f["mesure"]: pt("Couvre-feu des mineurs", "Exige une motivation spécifique au risque pour les mineurs, des horaires et un périmètre adaptés.", "Faits propres aux mineurs cités ?", 2)
+    P.sort(key=lambda x: -x["poids"])
+    score = sum(x["poids"] for x in P)
+    f["score"] = "fort" if score >= 6 else ("moyen" if score >= 3 else "faible")
+    f["verdict"] = {"fort": "Intérêt à attaquer : fort (plusieurs fragilités sérieuses)", "moyen": "Intérêt à attaquer : moyen (à examiner sur pièces)", "faible": "Intérêt à attaquer : faible en l'état (acte apparemment ciblé et motivé)"}[f["score"]]
+    return f
+
+def points_attaque(b, sig, ds, fin):
+    """Version courte (liste de phrases) pour les affichages compacts."""
+    f = fiche_acte(b, sig, ds, fin)
+    return [f["verdict"]] + ["%s : %s" % (x["titre"], x["pourquoi"]) for x in f["points"]][:7]
+
 def analyser_arretes(txt):
     """Découpe le texte d'un recueil par arrêté et qualifie ceux qui restreignent une liberté."""
     blocs = re.split(r"\n(?=\s*(?:ARR[ÊE]T[ÉE]\s*(?:PR[ÉE]FECTORAL|N°|n°|DU)|Arr[êe]t[ée]\s+(?:pr[ée]fectoral\s+)?(?:n°|N°|du|portant)))", txt)
@@ -119,7 +180,8 @@ def analyser_arretes(txt):
         else:
             voie = "dates non reconnues : à vérifier"
         res.append({"titre": titre, "date": sig.isoformat() if sig else "", "fin": fin.isoformat() if fin else "", "voie": voie,
-                    "extraits": extraits(b, 2), "contestable": bool(fin and fin >= aujourd_hui) or bool(sig and (aujourd_hui - sig).days <= 62)})
+                    "extraits": extraits(b, 2), "analyse": points_attaque(b, sig, ds, fin), "fiche": fiche_acte(b, sig, ds, fin),
+                    "contestable": bool(fin and fin >= aujourd_hui) or bool(sig and (aujourd_hui - sig).days <= 62)})
     return res
 
 def pdf_texte(data):
@@ -236,7 +298,7 @@ def notifier_site(nouveaux):
     """Alerte courriel envoyée par le site lui-même (admin/notifier.php), si le jeton est fourni."""
     if not NOTIF_CLE or not nouveaux: return
     try:
-        corps = json.dumps({"items": [{k: it.get(k, "") for k in ("departement", "date", "titre", "voie", "url")} for it in nouveaux[:30]]}).encode("utf-8")
+        corps = json.dumps({"items": [{k: it.get(k, "") for k in ("departement", "date", "titre", "voie", "url", "analyse", "fiche")} for it in nouveaux[:30]]}).encode("utf-8")
         req = urllib.request.Request(f"{SITE}/admin/notifier.php?cle={urllib.parse.quote(NOTIF_CLE)}", data=corps, headers={"Content-Type": "application/json", "User-Agent": UA})
         with urllib.request.urlopen(req, timeout=20) as r: log("notifier.php :", r.read(200).decode("utf-8", "replace").strip())
     except Exception as e:
@@ -336,7 +398,7 @@ def main():
             if any(re.sub(r"[^a-z0-9]+", " ", c.get("titre", "").lower()).strip()[:120] == cle_titre and c.get("departement") == dep for c in connus.values()): continue
             item = {"id": iid, "departement": dep, "hote": host, "flux": "RAA (contenu lu)",
                     "date": a["date"] or date_titre(t + " " + os.path.basename(u)) or NOW.strftime("%Y-%m-%d"), "fin": a.get("fin", ""),
-                    "titre": a["titre"] or t, "recueil": t, "voie": a["voie"], "contestable": a["contestable"],
+                    "titre": a["titre"] or t, "recueil": t, "voie": a["voie"], "contestable": a["contestable"], "analyse": a.get("analyse", []), "fiche": a.get("fiche", {}),
                     "resume": a["voie"] + (" | " + " [...] ".join(a["extraits"]) if a["extraits"] else ""), "url": u, "detecte_le": NOW.strftime("%Y-%m-%d %H:%M")}
             connus[iid] = item; nouveaux.append(item)
     for dep, host, u, t in reste: vus.discard(u)   # seront lus au prochain passage
@@ -346,7 +408,7 @@ def main():
         urls = {x.get("url", "") for x in registre}
         for it in nouveaux:
             if not it["url"] or it["url"] in urls: continue
-            registre.append({"date": it["date"], "fin": it.get("fin", ""), "voie": it.get("voie", ""), "commune": "", "departement": it["departement"],
+            registre.append({"date": it["date"], "fin": it.get("fin", ""), "voie": it.get("voie", ""), "analyse": it.get("analyse", []), "fiche": it.get("fiche", {}), "commune": "", "departement": it["departement"],
                              "autorite": "Préfet de police" if it["departement"] == "75" else f"Préfet (département {it['departement']})",
                              "type": "Recueil des actes administratifs" if it["flux"].startswith("RAA") else "Publication préfectorale",
                              "objet": it["titre"] + (" : " + it["resume"][:300] if it["resume"] else ""), "url": it["url"], "auto": True,
