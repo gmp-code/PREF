@@ -20,7 +20,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Outils
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils
+          python3 -m pip install -q playwright
+          python3 -m playwright install --with-deps chromium
       - name: Collecte et mise à jour du site
         env:
           SITE_URL: ${{ vars.SITE_URL || 'https://front-administratif.fr' }}
