@@ -72,8 +72,8 @@ def date_titre(t):
     if m: return "%04d-%02d-%02d" % (int(m.group(3)), mois.get(m.group(2), 1), int(m.group(1)))
     m = re.search(r"\b(\d{2})[-_/.](\d{2})[-_/.](\d{4})\b", t)
     if m and int(m.group(2)) <= 12: return f"{m.group(3)}-{m.group(2)}-{m.group(1)}"
-    m = re.search(r"\b(\d{4})[-_](\d{2})[-_](\d{2})\b", t)
-    if m and int(m.group(2)) <= 12: return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+    m = re.search(r"(?<!\d)(\d{4})[-_](\d{2})[-_](\d{2})(?!\d)", t)
+    if m and int(m.group(2)) <= 12 and int(m.group(3)) <= 31: return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
     m = re.search(r"\b\d{2,3}-(\d{4})-(\d{2})-(\d{2})-\d{3,5}\b", t)   # numérotation des actes au RAA : 30-2026-10-29-00003
     if m and int(m.group(2)) <= 12 and int(m.group(3)) <= 31: return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
     return ""
@@ -83,6 +83,7 @@ def objet_propre(titre):
     t = re.sub(r"\s+", " ", (titre or "")).strip(" .;:-")
     t = re.sub(r"\s*\(\d+ pages?\)\s*", " ", t).strip()
     t = re.sub(r"\bPage \d+ :.*$", "", t).strip()
+    if re.match(r"(portant|relatif|relative|instituant|interdisant|autorisant|r[ée]glementant|prescrivant|fixant|modifiant|instaurant|ordonnant)\b", t, re.I): t = "Arrêté " + t[:1].lower() + t[1:]
     return (t[:1].upper() + t[1:]) if t else "Acte sans titre"
 
 DEPARTEMENTS = {"01":("Ain","de l'Ain"),"02":("Aisne","de l'Aisne"),"03":("Allier","de l'Allier"),"04":("Alpes-de-Haute-Provence","des Alpes-de-Haute-Provence"),"05":("Hautes-Alpes","des Hautes-Alpes"),"06":("Alpes-Maritimes","des Alpes-Maritimes"),"07":("Ardèche","de l'Ardèche"),"08":("Ardennes","des Ardennes"),"09":("Ariège","de l'Ariège"),"10":("Aube","de l'Aube"),"11":("Aude","de l'Aude"),"12":("Aveyron","de l'Aveyron"),"13":("Bouches-du-Rhône","des Bouches-du-Rhône"),"14":("Calvados","du Calvados"),"15":("Cantal","du Cantal"),"16":("Charente","de la Charente"),"17":("Charente-Maritime","de la Charente-Maritime"),"18":("Cher","du Cher"),"19":("Corrèze","de la Corrèze"),"2A":("Corse-du-Sud","de la Corse-du-Sud"),"2B":("Haute-Corse","de la Haute-Corse"),"21":("Côte-d'Or","de la Côte-d'Or"),"22":("Côtes-d'Armor","des Côtes-d'Armor"),"23":("Creuse","de la Creuse"),"24":("Dordogne","de la Dordogne"),"25":("Doubs","du Doubs"),"26":("Drôme","de la Drôme"),"27":("Eure","de l'Eure"),"28":("Eure-et-Loir","d'Eure-et-Loir"),"29":("Finistère","du Finistère"),"30":("Gard","du Gard"),"31":("Haute-Garonne","de la Haute-Garonne"),"32":("Gers","du Gers"),"33":("Gironde","de la Gironde"),"34":("Hérault","de l'Hérault"),"35":("Ille-et-Vilaine","d'Ille-et-Vilaine"),"36":("Indre","de l'Indre"),"37":("Indre-et-Loire","d'Indre-et-Loire"),"38":("Isère","de l'Isère"),"39":("Jura","du Jura"),"40":("Landes","des Landes"),"41":("Loir-et-Cher","de Loir-et-Cher"),"42":("Loire","de la Loire"),"43":("Haute-Loire","de la Haute-Loire"),"44":("Loire-Atlantique","de la Loire-Atlantique"),"45":("Loiret","du Loiret"),"46":("Lot","du Lot"),"47":("Lot-et-Garonne","de Lot-et-Garonne"),"48":("Lozère","de la Lozère"),"49":("Maine-et-Loire","de Maine-et-Loire"),"50":("Manche","de la Manche"),"51":("Marne","de la Marne"),"52":("Haute-Marne","de la Haute-Marne"),"53":("Mayenne","de la Mayenne"),"54":("Meurthe-et-Moselle","de Meurthe-et-Moselle"),"55":("Meuse","de la Meuse"),"56":("Morbihan","du Morbihan"),"57":("Moselle","de la Moselle"),"58":("Nièvre","de la Nièvre"),"59":("Nord","du Nord"),"60":("Oise","de l'Oise"),"61":("Orne","de l'Orne"),"62":("Pas-de-Calais","du Pas-de-Calais"),"63":("Puy-de-Dôme","du Puy-de-Dôme"),"64":("Pyrénées-Atlantiques","des Pyrénées-Atlantiques"),"65":("Hautes-Pyrénées","des Hautes-Pyrénées"),"66":("Pyrénées-Orientales","des Pyrénées-Orientales"),"67":("Bas-Rhin","du Bas-Rhin"),"68":("Haut-Rhin","du Haut-Rhin"),"69":("Rhône","du Rhône"),"70":("Haute-Saône","de la Haute-Saône"),"71":("Saône-et-Loire","de Saône-et-Loire"),"72":("Sarthe","de la Sarthe"),"73":("Savoie","de la Savoie"),"74":("Haute-Savoie","de la Haute-Savoie"),"75":("Paris","de police"),"76":("Seine-Maritime","de la Seine-Maritime"),"77":("Seine-et-Marne","de Seine-et-Marne"),"78":("Yvelines","des Yvelines"),"79":("Deux-Sèvres","des Deux-Sèvres"),"80":("Somme","de la Somme"),"81":("Tarn","du Tarn"),"82":("Tarn-et-Garonne","de Tarn-et-Garonne"),"83":("Var","du Var"),"84":("Vaucluse","de Vaucluse"),"85":("Vendée","de la Vendée"),"86":("Vienne","de la Vienne"),"87":("Haute-Vienne","de la Haute-Vienne"),"88":("Vosges","des Vosges"),"89":("Yonne","de l'Yonne"),"90":("Territoire de Belfort","du Territoire de Belfort"),"91":("Essonne","de l'Essonne"),"92":("Hauts-de-Seine","des Hauts-de-Seine"),"93":("Seine-Saint-Denis","de la Seine-Saint-Denis"),"94":("Val-de-Marne","du Val-de-Marne"),"95":("Val-d'Oise","du Val-d'Oise"),"971":("Guadeloupe","de la Guadeloupe"),"972":("Martinique","de la Martinique"),"973":("Guyane","de la Guyane"),"974":("La Réunion","de La Réunion"),"976":("Mayotte","de Mayotte")}
@@ -532,6 +533,21 @@ def ftp_connect():
 def ftp_put(f, remote, data):
     f.storbinary("STOR " + remote, io.BytesIO(data))
 
+def ftp_cd_data(f):
+    """Se place dans le dossier data du site, quel que soit le point d'entrée du compte FTP (racine, public_html, domaine)."""
+    for d in (FTP_DIR + "/data", "data", "/data", "public_html/data", "/public_html/data", FTP_DIR.strip("/") + "/data"):
+        try: f.cwd(d); return True
+        except Exception: pass
+    try:
+        for n in f.nlst():
+            if n.endswith("public_html") or "domains" in n:
+                for d in (n + "/data", n + "/public_html/data"):
+                    try: f.cwd(d); return True
+                    except Exception: pass
+    except Exception: pass
+    log("FTP : dossier data introuvable (FTP_DIR =", FTP_DIR, ") ; racine vue :", f.pwd() if f else "?")
+    return False
+
 def ftp_get(f, remote):
     """Contenu d'un fichier du site (None s'il n'existe pas ou si la lecture échoue)."""
     buf = io.BytesIO()
@@ -565,7 +581,13 @@ def preparer_navigateur():
         pass
     log("Installation du navigateur invisible...")
     try:
-        subprocess.run([sys.executable, "-m", "pip", "install", "-q", "playwright"], check=True, timeout=300)
+        r0 = subprocess.run([sys.executable, "-m", "pip", "install", "-q", "--upgrade", "playwright"], timeout=300, capture_output=True, text=True)
+        if r0.returncode != 0:
+            log("pip (playwright) :", (r0.stderr or r0.stdout)[-300:])
+            r0 = subprocess.run([sys.executable, "-m", "pip", "install", "-q", "--user", "playwright"], timeout=300, capture_output=True, text=True)
+        import site, importlib; importlib.invalidate_caches()
+        for sp in site.getsitepackages() + [site.getusersitepackages()]:
+            if sp not in sys.path: sys.path.append(sp)
         r = subprocess.run([sys.executable, "-m", "playwright", "install", "--with-deps", "chromium"], check=False, timeout=600, capture_output=True, text=True)
         if r.returncode != 0:
             r = subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=False, timeout=600, capture_output=True, text=True)
@@ -597,7 +619,10 @@ def main():
     preparer_navigateur()
     prefs = json.loads(open("prefectures.json", encoding="utf-8").read()); prefs.pop("_commentaire", None)
     f0 = ftp_connect() if FTP_HOST else None
-    if f0: f0.cwd(FTP_DIR + "/data")
+    if f0 and not ftp_cd_data(f0):
+        try: f0.quit()
+        except Exception: pass
+        f0 = None
     etat, _ = lire_site(f0, "veille.json", {})
     registre, registre_lu = lire_site(f0, "arretes.json", [])
     journal0, _ = lire_site(f0, "journal-public.json", [])
@@ -738,12 +763,12 @@ def main():
         notifier(f"Dép. {it['departement']} : {it['titre'][:80]}", (it["resume"] or it["flux"])[:300], it["url"])
     if not FTP_HOST:
         log("FTP non configuré : résultats écrits localement dans sortie/"); os.makedirs("sortie", exist_ok=True)
-        for n, o in (("veille.json", etat), ("veille-public.json", public), ("arretes.json", registre), ("etat-veille.json", etat_public), ("journal-public.json", journal)):
+        for n, o in [("veille.json", etat), ("veille-public.json", public), ("etat-veille.json", etat_public), ("journal-public.json", journal)] + ([("arretes.json", registre)] if registre_lu else []):
             open(f"sortie/{n}", "w", encoding="utf-8").write(json.dumps(o, ensure_ascii=False, indent=2))
         return
     f = ftp_connect()
     if not f: sys.exit("Connexion FTP impossible")
-    f.cwd(FTP_DIR + "/data")
+    if not ftp_cd_data(f): sys.exit("Dossier data introuvable sur le FTP : vérifier la variable FTP_DIR")
     sorties = [("veille.json", etat), ("veille-public.json", public), ("etat-veille.json", etat_public), ("journal-public.json", journal)]
     if registre_lu: sorties.append(("arretes.json", registre))   # arretes-public.json est produit par le site lors de la publication manuelle
     for n, o in sorties:
