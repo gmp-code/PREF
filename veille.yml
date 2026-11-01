@@ -2,7 +2,11 @@ name: Veille des préfectures
 
 on:
   schedule:
-    - cron: "*/30 * * * *"   # toutes les 30 minutes (heure UTC)
+    # Heures UTC (Paris = UTC+1 en hiver, UTC+2 en été). Rythme calé sur les créneaux de publication des arrêtés.
+    - cron: "*/30 5-23 * * *"      # journée : toutes les 30 minutes
+    - cron: "0 0-4 * * *"          # nuit : toutes les heures
+    - cron: "*/15 14-21 * * 5"     # vendredi 15h-23h Paris : veille renforcée, toutes les 15 minutes
+    - cron: "*/15 5-12 * * 6"      # samedi 6h-14h Paris : veille renforcée
   workflow_dispatch:         # bouton "Run workflow" pour lancer à la main
 
 concurrency:

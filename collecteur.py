@@ -24,7 +24,7 @@ RAA_PAGES = int(os.environ.get("RAA_PAGES", "30"))
 AUTO_REGISTRE = os.environ.get("AUTO_REGISTRE", "1") == "1"
 AUTO_PUBLIER = os.environ.get("AUTO_PUBLIER", "0") == "1"   # 1 = publier sans relecture ; 0 = déposer dans le tableau de bord, publication manuelle
 UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
-MAX_PDF = int(os.environ.get("MAX_PDF", "80"))
+MAX_PDF = int(os.environ.get("MAX_PDF", "150"))
 MAX_AGE_DAYS = 45
 NOW = dt.datetime.now(dt.timezone.utc)
 try:
@@ -74,7 +74,18 @@ def date_titre(t):
     if m and int(m.group(2)) <= 12: return f"{m.group(3)}-{m.group(2)}-{m.group(1)}"
     m = re.search(r"\b(\d{4})[-_](\d{2})[-_](\d{2})\b", t)
     if m and int(m.group(2)) <= 12: return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+    m = re.search(r"\b\d{2,3}-(\d{4})-(\d{2})-(\d{2})-\d{3,5}\b", t)   # numérotation des actes au RAA : 30-2026-10-29-00003
+    if m and int(m.group(2)) <= 12 and int(m.group(3)) <= 31: return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
     return ""
+
+def objet_propre(titre):
+    """Titre d'acte lisible : majuscule initiale, espaces normalisés, sans mention de pagination."""
+    t = re.sub(r"\s+", " ", (titre or "")).strip(" .;:-")
+    t = re.sub(r"\s*\(\d+ pages?\)\s*", " ", t).strip()
+    t = re.sub(r"\bPage \d+ :.*$", "", t).strip()
+    return (t[:1].upper() + t[1:]) if t else "Acte sans titre"
+
+DEPARTEMENTS = {"01":("Ain","de l'Ain"),"02":("Aisne","de l'Aisne"),"03":("Allier","de l'Allier"),"04":("Alpes-de-Haute-Provence","des Alpes-de-Haute-Provence"),"05":("Hautes-Alpes","des Hautes-Alpes"),"06":("Alpes-Maritimes","des Alpes-Maritimes"),"07":("Ardèche","de l'Ardèche"),"08":("Ardennes","des Ardennes"),"09":("Ariège","de l'Ariège"),"10":("Aube","de l'Aube"),"11":("Aude","de l'Aude"),"12":("Aveyron","de l'Aveyron"),"13":("Bouches-du-Rhône","des Bouches-du-Rhône"),"14":("Calvados","du Calvados"),"15":("Cantal","du Cantal"),"16":("Charente","de la Charente"),"17":("Charente-Maritime","de la Charente-Maritime"),"18":("Cher","du Cher"),"19":("Corrèze","de la Corrèze"),"2A":("Corse-du-Sud","de la Corse-du-Sud"),"2B":("Haute-Corse","de la Haute-Corse"),"21":("Côte-d'Or","de la Côte-d'Or"),"22":("Côtes-d'Armor","des Côtes-d'Armor"),"23":("Creuse","de la Creuse"),"24":("Dordogne","de la Dordogne"),"25":("Doubs","du Doubs"),"26":("Drôme","de la Drôme"),"27":("Eure","de l'Eure"),"28":("Eure-et-Loir","d'Eure-et-Loir"),"29":("Finistère","du Finistère"),"30":("Gard","du Gard"),"31":("Haute-Garonne","de la Haute-Garonne"),"32":("Gers","du Gers"),"33":("Gironde","de la Gironde"),"34":("Hérault","de l'Hérault"),"35":("Ille-et-Vilaine","d'Ille-et-Vilaine"),"36":("Indre","de l'Indre"),"37":("Indre-et-Loire","d'Indre-et-Loire"),"38":("Isère","de l'Isère"),"39":("Jura","du Jura"),"40":("Landes","des Landes"),"41":("Loir-et-Cher","de Loir-et-Cher"),"42":("Loire","de la Loire"),"43":("Haute-Loire","de la Haute-Loire"),"44":("Loire-Atlantique","de la Loire-Atlantique"),"45":("Loiret","du Loiret"),"46":("Lot","du Lot"),"47":("Lot-et-Garonne","de Lot-et-Garonne"),"48":("Lozère","de la Lozère"),"49":("Maine-et-Loire","de Maine-et-Loire"),"50":("Manche","de la Manche"),"51":("Marne","de la Marne"),"52":("Haute-Marne","de la Haute-Marne"),"53":("Mayenne","de la Mayenne"),"54":("Meurthe-et-Moselle","de Meurthe-et-Moselle"),"55":("Meuse","de la Meuse"),"56":("Morbihan","du Morbihan"),"57":("Moselle","de la Moselle"),"58":("Nièvre","de la Nièvre"),"59":("Nord","du Nord"),"60":("Oise","de l'Oise"),"61":("Orne","de l'Orne"),"62":("Pas-de-Calais","du Pas-de-Calais"),"63":("Puy-de-Dôme","du Puy-de-Dôme"),"64":("Pyrénées-Atlantiques","des Pyrénées-Atlantiques"),"65":("Hautes-Pyrénées","des Hautes-Pyrénées"),"66":("Pyrénées-Orientales","des Pyrénées-Orientales"),"67":("Bas-Rhin","du Bas-Rhin"),"68":("Haut-Rhin","du Haut-Rhin"),"69":("Rhône","du Rhône"),"70":("Haute-Saône","de la Haute-Saône"),"71":("Saône-et-Loire","de Saône-et-Loire"),"72":("Sarthe","de la Sarthe"),"73":("Savoie","de la Savoie"),"74":("Haute-Savoie","de la Haute-Savoie"),"75":("Paris","de police"),"76":("Seine-Maritime","de la Seine-Maritime"),"77":("Seine-et-Marne","de Seine-et-Marne"),"78":("Yvelines","des Yvelines"),"79":("Deux-Sèvres","des Deux-Sèvres"),"80":("Somme","de la Somme"),"81":("Tarn","du Tarn"),"82":("Tarn-et-Garonne","de Tarn-et-Garonne"),"83":("Var","du Var"),"84":("Vaucluse","de Vaucluse"),"85":("Vendée","de la Vendée"),"86":("Vienne","de la Vienne"),"87":("Haute-Vienne","de la Haute-Vienne"),"88":("Vosges","des Vosges"),"89":("Yonne","de l'Yonne"),"90":("Territoire de Belfort","du Territoire de Belfort"),"91":("Essonne","de l'Essonne"),"92":("Hauts-de-Seine","des Hauts-de-Seine"),"93":("Seine-Saint-Denis","de la Seine-Saint-Denis"),"94":("Val-de-Marne","du Val-de-Marne"),"95":("Val-d'Oise","du Val-d'Oise"),"971":("Guadeloupe","de la Guadeloupe"),"972":("Martinique","de la Martinique"),"973":("Guyane","de la Guyane"),"974":("La Réunion","de La Réunion"),"976":("Mayotte","de Mayotte")}
 
 def pertinent_rss(txt):
     t = txt.lower()
@@ -169,36 +180,119 @@ def points_attaque(b, sig, ds, fin):
     f = fiche_acte(b, sig, ds, fin)
     return [f["verdict"]] + ["%s : %s" % (x["titre"], x["pourquoi"]) for x in f["points"]][:7]
 
+# ---------------------------------------------------------------- Classification des actes préfectoraux
+# Deux étages : (1) nature de l'acte, par catégories fermées entrant dans l'objet (article 2 des statuts) ;
+# (2) exclusions par catégorie. Un acte est retenu s'il entre dans une catégorie positive et dans aucune exclusion.
+CATEGORIES = [
+    ("manifestation", "interdiction ou restriction de manifestation, rassemblement, cortège ou attroupement",
+     r"interdi\w+[^.\n]{0,120}(manifest|rassemblement|cort[eè]ge|attroupement|r[ée]union sur la voie publique)|(manifest|rassemblement|cort[eè]ge|attroupement)\w*[^.\n]{0,80}(interdi|prohib)|(r[ée]glement|restri|encadr)\w*[^.\n]{0,60}(manifestation|rassemblement|cort[eè]ge)|mesures? de police[^.\n]{0,60}(manifestation|rassemblement|cort[eè]ge)|itin[ée]raire[^.\n]{0,40}(manifestation|cort[eè]ge|d[ée]fil[ée])|interdiction de s[ée]journer|interdiction de para[iî]tre"),
+    ("perimetre", "périmètre de protection ou de sécurité (L. 226-1 CSI), zone interdite au public",
+     r"p[ée]rim[eè]tre de (protection|s[ée]curit[ée])|l\.\s*226-1|zone[^.\n]{0,40}interdi\w+[^.\n]{0,40}(public|personnes|acc[eè]s)|interdiction d.acc[eè]s[^.\n]{0,60}(public|personnes)"),
+    ("couvre_feu", "couvre-feu", r"couvre[- ]feu"),
+    ("mineurs", "restriction de circulation des mineurs", r"mineurs? (non accompagn|de moins de)|circulation des mineurs"),
+    ("drones", "captation d'images par caméras aéroportées ou mobiles (L. 242 CSI)",
+     r"cam[ée]ras? (a[ée]roport[ée]e|install[ée]e[s]? sur (des |un )?(a[ée]ronef|drone)|embarqu[ée]e|pi[ée]ton|mobile)|captation[^.\n]{0,80}(images|a[ée]ronef|drone)|a[ée]ronefs? circulant sans personne|l\.\s*242-\d|drones?[^.\n]{0,60}(images|cam[ée]ra|captation|surveillance)"),
+    ("distribution", "interdiction de distribution alimentaire, de mendicité ou d'occupation humanitaire de l'espace public",
+     r"distribution[^.\n]{0,40}(gratuite|alimentaire|de nourriture|de repas|de denr[ée]es)|mendicit[ée]|station(nement)? (assise|allong)|occupation (abusive|prolong[ée]e)[^.\n]{0,40}(espace|voie) public"),
+    ("objets_visage", "interdiction de port ou transport d'objets, d'artifices, de carburants, dissimulation du visage",
+     r"dissimul\w+[^.\n]{0,30}visage|port[^.\n]{0,40}(d.objets?|d.armes? par destination|d.[ée]quipements? de protection)|transport[^.\n]{0,40}(carburant|substance|artifice|combustible)|artifices? de divertissement|engins? pyrotechnique"),
+    ("fermeture_lieu", "fermeture ou interdiction d'un lieu de réunion, de culte ou de spectacle",
+     r"fermeture[^.\n]{0,40}(lieu de culte|mosqu[ée]e|salle|lieu de r[ée]union|[ée]tablissement recevant du public)|interdiction[^.\n]{0,60}(spectacle|r[ée]union publique|conf[ée]rence|concert|projection)"),
+    ("circulation_personnes", "interdiction de circulation ou de stationnement des personnes (hors circulation routière)",
+     r"interdiction[^.\n]{0,40}(de circuler|de circulation)[^.\n]{0,40}(personnes?|pi[ée]tons?|public)|interdiction de (stationner|se tenir)[^.\n]{0,60}(personnes|public|groupes?)"),
+]
+CATEGORIES_RX = [(k, lib, re.compile(rx, re.I | re.S)) for k, lib, rx in CATEGORIES]
+EXCLUSIONS = [
+    ("nominatif", r"d[ée]l[ée]gation de (signature|pouvoir|fonction)|habilitation|agr[ée]ment|nomination|d[ée]signation|composition|commission|comit[ée]|conseil (d[ée]partemental|m[ée]dical)|tableau d.avancement|m[ée]daille|honorariat|subdélégation|portant (modification|renouvellement) de l.arr[êe]t[ée] (de|portant) (nomination|composition|d[ée]l[ée]gation)"),
+    ("environnement", r"installation[s]? class[ée]e|icpe|[ée]olien|carri[eè]re|d[ée]chets|eau potable|assainissement|captage|zone humide|natura 2000|esp[eè]ces prot[ée]g[ée]es|d[ée]frichement|plan de pr[ée]vention des risques|catastrophe naturelle|s[ée]cheresse|restriction[s]? des usages de l.eau|brûlage|feux? de for[êe]t|emploi du feu"),
+    ("chasse_peche", r"\bchasse\b|\bp[êe]che\b|gibier|louveterie|battue|nuisibles|esp[eè]ces susceptibles"),
+    ("routier", r"s[ée]curit[ée] routi[eè]re|circulation routi[eè]re|limitation de vitesse|poids lourds|autoroute|\b(rn|rd|a)\s?\d{1,4}\b|route nationale|route d[ée]partementale|chauss[ée]e|d[ée]viation|transports? exceptionnels?|fourri[eè]re|auto-[ée]cole|permis de conduire|taxi|vtc|immatriculation"),
+    ("evenement", r"manifestation (sportive|nautique|a[ée]rienne|motoris[ée]e|cycliste|p[ée]destre|[ée]questre)|course (cycliste|p[ée]destre|automobile|hippique)|rallye|trail|marathon|triathlon|randonn[ée]e|meeting a[ée]rien|feu d.artifice|fête (foraine|votive)|braderie|brocante|vide[- ]greniers?|vente au d[ée]ballage|foire|salon|march[ée] (de no[eë]l|hebdomadaire)"),
+    ("securite_civile", r"temp[êe]te|vigilance (orange|rouge)|intemp[ée]ries|\bcrue|inondation|avalanche|canicule|risque (d.)?incendie|massifs? forestier|\bplages?\b|falaise|[ée]boulement|p[ée]ril imminent|plan (orsec|communal de sauvegarde)|survol"),
+    ("sanitaire", r"grippe aviaire|influenza|[ée]pizootie|tuberculose|fi[eè]vre|zone r[ée]glement[ée]e[^.\n]{0,40}(aviaire|sanitaire)|abattage|cheptel|v[ée]t[ée]rinaire|moustique|d[ée]moustication|baignade|qualit[ée] des eaux"),
+    ("urbanisme", r"permis de (construire|d[ée]molir|am[ée]nager)|d[ée]claration d.utilit[ée] publique|expropriation|enqu[êe]te publique|cessibilit[ée]|servitude|alignement|lotissement|plan local d.urbanisme|zone d.am[ée]nagement|remembrement|p[ée]ril|insalubrit[ée]|mise en demeure"),
+    ("economie", r"d[ée]bit de boissons|licence (ii|iii|iv)|fermeture administrative[^.\n]{0,40}([ée]tablissement|bar|restaurant|commerce|discoth[eè]que)|tarif|subvention|redevance|dotation|budget|march[ée] public|appel d.offres|liquidation|ouverture dominicale|d[ée]rogation au repos"),
+    ("administration", r"r[ée]gie|r[ée]gisseur|jury|[ée]lection|liste [ée]lectorale|bureau de vote|recensement|archives|domaine public (fluvial|maritime)|concession|convention|cahier des charges|statuts|dissolution|cr[ée]ation (d.un|de la|du) (syndicat|[ée]tablissement|groupement)|funéraire|fun[ée]raire|cr[ée]mation|inhumation|transport de corps"),
+]
+EXCLUSIONS_RX = [(k, re.compile(rx, re.I)) for k, rx in EXCLUSIONS]
+POSITIVES_FORTES = {"manifestation", "perimetre", "couvre_feu", "mineurs", "drones", "distribution", "fermeture_lieu"}
+
+def categoriser(titre, corps):
+    """Catégories positives et exclusions d'un acte. Le titre (et l'article 1er) comptent d'abord ; le corps confirme."""
+    tt = (titre or "")[:400]
+    m = re.search(r"article\s*1(?:er)?\b.{0,1500}", corps, re.I | re.S)
+    art1 = m.group(0) if m else corps[:1500]
+    pos_t = [k for k, lib, rx in CATEGORIES_RX if rx.search(tt)]
+    pos_a = [k for k, lib, rx in CATEGORIES_RX if rx.search(art1)]
+    neg_t = [k for k, rx in EXCLUSIONS_RX if rx.search(tt)]
+    pos = list(dict.fromkeys(pos_t + pos_a))
+    # décision : catégorie positive dans le titre ou l'article 1er, et aucune exclusion dans le titre ;
+    # exception : "objets_visage" et "circulation_personnes" seuls ne suffisent pas sans catégorie forte (sinon on retient les arrêtés de voirie)
+    retenu = bool(pos) and not neg_t and bool(set(pos) & POSITIVES_FORTES or (pos_t and set(pos_t) - {"circulation_personnes"}))
+    # un titre explicitement "manifestation / rassemblement" l'emporte sur une exclusion "evenement" seulement s'il s'agit d'une interdiction
+    if not retenu and "manifestation" in pos_t and neg_t == ["evenement"] and re.search(r"interdi", tt, re.I) and not re.search(r"autoris|\bcourse\b|rallye|trail|marathon|triathlon|randonn", tt, re.I):
+        retenu = True   # interdiction de rassemblement à l'occasion d'un événement (match, festival) : c'est bien notre objet
+    return pos, neg_t, retenu
+
+def decouper_raa(txt):
+    """Coupe un recueil en actes : chaque bloc commence à un en-tête d'arrêté et contient des visas ou un article 1er
+    (ce qui écarte le sommaire et les pages de garde). Renvoie des (titre, bloc)."""
+    txt = txt.replace("\x0c", "\n")
+    # en-tête d'acte : "ARRÊTÉ N° ..." / "ARRÊTÉ PRÉFECTORAL ..." / "Arrêté portant ..." ; jamais la ligne "ARRÊTE :" qui ouvre le dispositif
+    ENTETE = r"(?:ARR[ÊE]T[ÉE]S?(?:\s+(?:PR[ÉE]FECTORAL|INTERPR[ÉE]FECTORAL|MUNICIPAL|CONJOINT|COMPL[ÉE]MENTAIRE|MODIFICATIF))?\s*(?:N\s*°|n\s*°|No\b|N\s*:|DU\b|D[ÉE]PARTEMENTAL|PORTANT|RELATIF|AUTORISANT|INTERDISANT|INSTITUANT|R[ÉE]GLEMENTANT|FIXANT|MODIFIANT|PRESCRIVANT|du\b|portant|relatif|autorisant|interdisant|instituant|r[ée]glementant|fixant|modifiant|prescrivant)|Arr[êe]t[ée]s?\b(?!\s*:))"
+    parts = re.split(r"\n(?=[ \t]*" + ENTETE + r"[^\n]{0,220}\n)", txt)
+    out = []
+    for b in parts:
+        if len(b) < 300: continue
+        if not re.search(r"\b(vu|VU)\b[^\n]{0,120}\b(code|loi|d[ée]cret|article)|\barticle\s*1(?:er)?\b|ARR[ÊE]TE\s*:?\s*\n", b[:8000], re.I): continue   # sommaire, pages de garde
+        head = b[:1800]
+        titre = ""
+        m = re.search(r"(?:ARR[ÊE]T[ÉE]|Arr[êe]t[ée])[^\n]{0,80}?\b(portant|relatif|relative|instituant|interdisant|autorisant|r[ée]glementant|prescrivant|fixant|modifiant|cr[ée]ant|ordonnant)\b(.{10,320}?)(?=\s*(?:Le pr[ée]fet|LE PR[ÉE]FET|La pr[ée]f[eè]te|LA PR[ÉE]F[EÈ]TE|Vu |VU |Article|ARTICLE|NOR\s*:|\n\s*\n))", head, re.S | re.I)
+        if m: titre = (m.group(1) + m.group(2))
+        else:
+            m = re.search(r"\b(portant|relatif|relative|instituant|interdisant|autorisant|r[ée]glementant|prescrivant|fixant|modifiant)\b(.{10,320}?)(?=\s*(?:Le pr[ée]fet|LE PR[ÉE]FET|La pr[ée]f[eè]te|Vu |VU |Article|ARTICLE|\n\s*\n))", head, re.S | re.I)
+            if m: titre = m.group(1) + m.group(2)
+        if not titre: titre = b.strip().split("\n")[0]
+        titre = re.sub(r"\s+", " ", titre).strip()[:300]
+        out.append((titre, b))
+    return out
+
 def analyser_arretes(txt):
-    """Découpe le texte d'un recueil par arrêté et qualifie ceux qui restreignent une liberté."""
-    blocs = re.split(r"\n(?=\s*(?:ARR[ÊE]T[ÉE]\s*(?:PR[ÉE]FECTORAL|N°|n°|DU)|Arr[êe]t[ée]\s+(?:pr[ée]fectoral\s+)?(?:n°|N°|du|portant)))", txt)
+    """Découpe un recueil par acte, ne garde que ceux qui entrent dans l'objet, et qualifie chacun."""
     res = []
     aujourd_hui = NOW.date()
-    for b in blocs:
-        if len(b) < 200 or not FORTS.search(b) or (BANALS.search(b[:600]) and not FORTS.search(b[:1500])): continue
-        titre = re.sub(r"\s+", " ", b.strip().split("\n")[0])[:220]
-        m = re.search(r"(?:portant|relatif à|instituant|interdisant|autorisant|réglementant)\s.{10,260}?(?=\s(?:Le |La |Vu |VU |Article|ARTICLE|\n))", b[:2500], re.S)
-        if m: titre = re.sub(r"\s+", " ", m.group(0))[:260]
-        ds = sorted(set(dates_dans(b[:6000])))
+    for titre, b in decouper_raa(txt):
+        pos, neg, retenu = categoriser(titre, b)
+        if not retenu: continue
+        ds = sorted(set(dates_dans(b[:8000])))
         sig = None
         mf = re.search(r"Fait\s+(?:à|a)\s+.{0,60}?,?\s*le\s+([^\n]{6,40})", b, re.I | re.S)
         if mf:
             dfs = dates_dans(mf.group(1))
             if dfs and dfs[0] <= aujourd_hui: sig = dfs[0]
-        if sig is None: sig = next((d for d in reversed(ds) if d <= aujourd_hui), None)
-        futures = [d for d in ds if d >= aujourd_hui]
-        fin = max(ds) if ds else None
+        if sig is None:
+            d0 = date_titre(titre)
+            if d0: sig = dt.date.fromisoformat(d0)
+        if sig is None: sig = next((d for d in reversed(ds) if d <= aujourd_hui and d.year >= aujourd_hui.year - 1), None)
+        # période d'application : dates postérieures ou égales à la signature, dans le dispositif
+        ma = re.search(r"article\s*1(?:er)?\b.{0,3000}", b, re.I | re.S)
+        dd = sorted(set(dates_dans(ma.group(0)))) if ma else []
+        apres = [d for d in dd if (not sig or d >= sig) and (d - aujourd_hui).days <= 400]
+        fin = max(apres) if apres else None
         if fin and fin >= aujourd_hui:
             voie = "en vigueur jusqu'au %s : référé-liberté (L. 521-2 CJA) ou référé-suspension possibles" % fin.strftime("%d/%m/%Y")
         elif sig and (aujourd_hui - sig).days <= 62:
             lim = sig + dt.timedelta(days=60)
-            voie = "effets passés ; recours pour excès de pouvoir possible jusqu'au %s environ (délai de deux mois)" % lim.strftime("%d/%m/%Y")
+            voie = ("effets passés le %s ; " % fin.strftime("%d/%m/%Y") if fin else "") + "recours pour excès de pouvoir possible jusqu'au %s environ (deux mois)" % lim.strftime("%d/%m/%Y")
         elif sig:
             voie = "délai de recours probablement expiré (acte du %s)" % sig.strftime("%d/%m/%Y")
         else:
             voie = "dates non reconnues : à vérifier"
-        res.append({"titre": titre, "date": sig.isoformat() if sig else "", "fin": fin.isoformat() if fin else "", "voie": voie,
-                    "extraits": extraits(b, 2), "analyse": points_attaque(b, sig, ds, fin), "fiche": fiche_acte(b, sig, ds, fin),
+        f = fiche_acte(b, sig, ds, fin)
+        f["categories"] = pos
+        f["mesure"] = ", ".join(lib for k, lib, rx in CATEGORIES_RX if k in pos) or f["mesure"]
+        res.append({"titre": objet_propre(titre), "date": sig.isoformat() if sig else "", "fin": fin.isoformat() if fin else "", "voie": voie, "categories": pos,
+                    "extraits": extraits(b, 2), "analyse": [f["verdict"]] + ["%s : %s" % (x["titre"], x["pourquoi"]) for x in f["points"]][:7], "fiche": f,
                     "contestable": bool(fin and fin >= aujourd_hui) or bool(sig and (aujourd_hui - sig).days <= 62)})
     return res
 
@@ -331,13 +425,7 @@ def collecte_paris():
     else:
         log("Préfecture de police : RSS bloqué, passage par navigateur")
         try:
-            try:
-                from playwright.sync_api import sync_playwright
-            except ImportError:
-                log("Installation du navigateur invisible (une fois par passage)...")
-                subprocess.run([sys.executable, "-m", "pip", "install", "-q", "playwright"], check=True, timeout=300)
-                subprocess.run([sys.executable, "-m", "playwright", "install", "--with-deps", "chromium"], check=False, timeout=600, capture_output=True)
-                from playwright.sync_api import sync_playwright
+            from playwright.sync_api import sync_playwright
             with sync_playwright() as p:
                 b = p.chromium.launch(args=["--no-sandbox"]); ctx = b.new_context(user_agent=UA, locale="fr-FR"); pg = ctx.new_page()
                 pages = [(f"https://{host}/actualites-et-presse/actualites", "Actualités PP (navigateur)"),
@@ -444,6 +532,22 @@ def ftp_connect():
 def ftp_put(f, remote, data):
     f.storbinary("STOR " + remote, io.BytesIO(data))
 
+def ftp_get(f, remote):
+    """Contenu d'un fichier du site (None s'il n'existe pas ou si la lecture échoue)."""
+    buf = io.BytesIO()
+    try: f.retrbinary("RETR " + remote, buf.write); return buf.getvalue().decode("utf-8", "replace")
+    except error_perm: return None
+    except Exception as e: log("FTP lecture", remote, ":", e); return None
+
+def lire_site(f, nom, defaut):
+    """Lit data/<nom> par FTP (sinon HTTP). Renvoie (objet, lu) : lu=False signifie qu'on n'écrira pas ce fichier."""
+    txt = ftp_get(f, nom) if f else None
+    if txt is None: txt = get(f"{SITE}/data/{nom}")
+    if txt is None: return defaut, False
+    try: o = json.loads(txt)
+    except Exception: return defaut, False
+    return (o if isinstance(o, type(defaut)) else defaut), True
+
 def notifier(titre, corps, url=""):
     if not NTFY: return
     try:
@@ -452,17 +556,60 @@ def notifier(titre, corps, url=""):
     except Exception as e:
         log("ntfy :", e)
 
+def preparer_navigateur():
+    """Installe Playwright et Chromium si absents (machine GitHub neuve à chaque passage, environ 40 s)."""
+    try:
+        import playwright.sync_api  # noqa
+        return True
+    except ImportError:
+        pass
+    log("Installation du navigateur invisible...")
+    try:
+        subprocess.run([sys.executable, "-m", "pip", "install", "-q", "playwright"], check=True, timeout=300)
+        r = subprocess.run([sys.executable, "-m", "playwright", "install", "--with-deps", "chromium"], check=False, timeout=600, capture_output=True, text=True)
+        if r.returncode != 0:
+            r = subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=False, timeout=600, capture_output=True, text=True)
+        import importlib; importlib.invalidate_caches()
+        import playwright.sync_api  # noqa
+        log("Navigateur invisible prêt." if r.returncode == 0 else "Navigateur installé sans dépendances système : " + (r.stderr or "")[-200:])
+        return True
+    except Exception as e:
+        log("Navigateur invisible indisponible :", str(e)[:160]); return False
+
+def recent_doc(u, t):
+    """Vrai si le document semble dater de moins de 70 jours (date dans le titre ou l'URL), ou si aucune date n'est lisible."""
+    d = date_titre(t) or date_titre(u.replace("%20", " "))
+    if d:
+        try: return (NOW.date() - dt.date.fromisoformat(d)).days <= 70
+        except Exception: return True
+    ym = re.search(r"/(20\d\d)/(\d{2})[-_/]", u) or re.search(r"(20\d\d)[-_](\d{2})(?!\d)", u + " " + t)
+    if ym:
+        y, m = int(ym.group(1)), int(ym.group(2))
+        if 1 <= m <= 12: return (NOW.year - y) * 12 + (NOW.month - m) <= 2
+    ys = re.findall(r"\b(20[12]\d)\b", u + " " + t)
+    if ys: return max(int(y) for y in ys) >= NOW.year
+    mois = {"janvier":1,"fevrier":2,"février":2,"mars":3,"avril":4,"mai":5,"juin":6,"juillet":7,"aout":8,"août":8,"septembre":9,"octobre":10,"novembre":11,"decembre":12,"décembre":12}
+    for k, v in mois.items():
+        if re.search(r"\b" + k + r"\b", (u + " " + t).lower()): return (NOW.month - v) % 12 <= 2
+    return True
+
 def main():
+    preparer_navigateur()
     prefs = json.loads(open("prefectures.json", encoding="utf-8").read()); prefs.pop("_commentaire", None)
-    try: etat = json.loads(get(f"{SITE}/data/veille.json") or "{}")
-    except Exception: etat = {}
-    if not isinstance(etat, dict): etat = {}
+    f0 = ftp_connect() if FTP_HOST else None
+    if f0: f0.cwd(FTP_DIR + "/data")
+    etat, _ = lire_site(f0, "veille.json", {})
+    registre, registre_lu = lire_site(f0, "arretes.json", [])
+    journal0, _ = lire_site(f0, "journal-public.json", [])
+    decisions, _ = lire_site(f0, "decisions.json", [])
+    etat_prec, _ = lire_site(f0, "etat-veille.json", {})
+    if f0:
+        try: f0.quit()
+        except Exception: pass
+    if not registre_lu: log("ATTENTION : registre (arretes.json) illisible, il ne sera pas modifié ce passage.")
     if not isinstance(etat.get("items"), list): etat["items"] = []
     if not isinstance(etat.get("sites"), dict): etat["sites"] = {}
     if not isinstance(etat.get("raa_vus"), list): etat["raa_vus"] = []
-    try: registre = json.loads(get(f"{SITE}/data/arretes.json") or "[]")
-    except Exception: registre = []
-    if not isinstance(registre, list): registre = []
     connus = {i["id"]: i for i in etat["items"] if isinstance(i, dict) and i.get("id")}
     vus = set(etat.get("raa_vus", []))
     nouveaux = []
@@ -495,20 +642,35 @@ def main():
             vus.add(u); a_lire.append((r["dep"], r["host"], u, t, r.get("commune", ""), r.get("autorite", "")))
     for x in raa_datagouv(vus):
         vus.add(x[2]); a_lire.append(x + ("", ""))
-    log(f"PDF nouveaux à lire : {len(a_lire)} (max {MAX_PDF} ce passage)")
+    anciens = [x for x in a_lire if not recent_doc(x[2], x[3] or "")]
+    a_lire = [x for x in a_lire if recent_doc(x[2], x[3] or "")]
+    for x in anciens: vus.add(x[2])   # documents datés de plus de 70 jours : hors délai de recours, jamais lus
+    def _cle(x):
+        d = date_titre(x[3] or "") or date_titre(x[2].replace("%20", " "))
+        return (d or "0000-00-00", 1 if not x[4] else 0)   # les plus récents d'abord, préfectures avant communes à date égale
+    a_lire.sort(key=_cle, reverse=True)
+    log(f"PDF nouveaux à lire : {len(a_lire)} récents (max {MAX_PDF} ce passage), {len(anciens)} anciens écartés sans lecture")
     reste = a_lire[MAX_PDF:]
+    stats = {"docs_lus": 0, "actes_retenus": 0, "retrogrades": 0}
+    # Apprentissage : catégories que l'association écarte presque toujours (au moins 5 décisions, 80 % d'écartés)
+    cat_dec = {}
+    for d in decisions if isinstance(decisions, list) else []:
+        for k in d.get("categories") or []: cat_dec.setdefault(k, [0, 0]); cat_dec[k][0] += 1; cat_dec[k][1] += 1 if d.get("decision") == "ecarte" else 0
+    CAT_FAIBLES = {k for k, (n, e) in cat_dec.items() if n >= 5 and e / n >= 0.8}
+    if cat_dec: log("Apprentissage : %d décision(s) enregistrées ; catégories presque toujours écartées : %s" % (sum(n for n, e in cat_dec.values()), ", ".join(sorted(CAT_FAIBLES)) or "aucune"))
     for dep, host, u, t, commune, autorite in a_lire[:MAX_PDF]:
         data = get(propre(u), timeout=60, binary=True)
         if not data: vus.discard(u); continue
         txt = pdf_texte(data)
         if not txt: continue
-        if commune:
-            if not pertinent_commune(t + " " + txt): continue
-        else:
-            if BANALS.search(txt) and not FORTS.search(txt): continue
-            if not FORTS.search(txt): continue
-        arretes = analyser_arretes(txt) or [{"titre": t, "date": "", "fin": "", "voie": "à qualifier", "extraits": extraits(txt), "contestable": True}]
+        if commune and not pertinent_commune(t + " " + txt): continue
+        if not any(rx.search(txt) for k, lib, rx in CATEGORIES_RX): continue   # aucune catégorie de l'objet dans tout le document
+        arretes = analyser_arretes(txt)
+        if not arretes: continue   # des mots de l'objet, mais aucun acte retenu après découpage et classification
+        stats["actes_retenus"] += len(arretes); stats["docs_lus"] += 1
         for k, a in enumerate(arretes):
+            if a.get("categories") and set(a["categories"]) <= CAT_FAIBLES:
+                a["fiche"]["score"] = "faible"; a["fiche"]["verdict"] = "Intérêt à attaquer : faible (catégorie presque toujours écartée par l'association)"; a["contestable"] = False; stats["retrogrades"] += 1
             iid = hashlib.sha1((u + "#" + str(k)).encode()).hexdigest()[:16]
             if iid in connus: continue
             cle_titre = re.sub(r"[^a-z0-9]+", " ", (a["titre"] or t).lower()).strip()[:120]
@@ -525,10 +687,11 @@ def main():
         urls = {x.get("url", "") for x in registre}
         for it in nouveaux:
             if not it["url"] or it["url"] in urls: continue
-            registre.append({"date": it["date"], "fin": it.get("fin", ""), "voie": it.get("voie", ""), "analyse": it.get("analyse", []), "fiche": it.get("fiche", {}), "commune": it.get("commune", ""), "departement": it["departement"],
-                             "autorite": it.get("autorite_detectee") or ("Préfet de police" if it["departement"] == "75" else f"Préfet (département {it['departement']})"),
+            dep = it["departement"]; nomdep = DEPARTEMENTS.get(dep, ("", ""))
+            registre.append({"date": it["date"], "fin": it.get("fin", ""), "voie": it.get("voie", ""), "analyse": it.get("analyse", []), "fiche": it.get("fiche", {}), "commune": it.get("commune", ""), "departement": (dep + " - " + nomdep[0]) if nomdep[0] else dep,
+                             "autorite": it.get("autorite_detectee") or ("Préfet de police" if dep == "75" else ("Préfet " + nomdep[1] if nomdep[1] else f"Préfet (département {dep})")),
                              "type": "Arrêté municipal" if it.get("commune") else ("Recueil des actes administratifs" if it["flux"].startswith("RAA") else "Publication préfectorale"),
-                             "objet": it["titre"] + (" : " + it["resume"][:300] if it["resume"] else ""), "url": it["url"], "auto": True,
+                             "objet": objet_propre(it["titre"]), "resume": (it.get("resume") or "")[:600], "url": it["url"], "auto": True,
                              "statut": "à contester" if it.get("contestable", True) else "expiré", "publie": AUTO_PUBLIER, "detecte_le": it["detecte_le"]})
             urls.add(it["url"]); it["au_registre"] = True; ajoutes += 1
         registre.sort(key=lambda x: x.get("date", ""), reverse=True)
@@ -537,36 +700,53 @@ def main():
     items = sorted(connus.values(), key=lambda i: (i.get("date", ""), i.get("detecte_le", "")), reverse=True)
     etat.update({"items": items, "raa_vus": sorted(vus)[-8000:], "derniere_execution": NOW.strftime("%Y-%m-%d %H:%M"), "nouveaux_derniere_execution": len(nouveaux), "collecteur": "github-actions"})
     public = [{k: i.get(k, "") for k in ("departement", "date", "fin", "titre", "voie", "resume", "url", "detecte_le", "flux")} for i in items[:200] if not i.get("ignore")]
+    log(f"Documents avec au moins un acte retenu : {stats['docs_lus']}, actes retenus : {stats['actes_retenus']}, rétrogradés par apprentissage : {stats['retrogrades']}")
     log(f"Nouveaux : {len(nouveaux)}, ajoutés au registre : {ajoutes}, total veille : {len(items)}")
     # État public de la veille (bandeau du site) et journal public (page "Journal de veille")
     joints = sum(1 for r in resultats if r.get("rss_ok") or r.get("pdfs"))
     nb_pref = sum(1 for r in resultats if not r.get("commune")); nb_com = sum(1 for r in resultats if r.get("commune"))
     seuil24 = (NOW - dt.timedelta(hours=24)).strftime("%Y-%m-%d %H:%M")
+    # état site par site, publié (département -> joint ou non, documents vus ; communes par nom)
+    sites_pub = {}
+    for r in resultats:
+        ok = bool(r.get("rss_ok") or r.get("pdfs"))
+        if r.get("commune"): sites_pub["c:" + r["commune"]] = {"joint": ok, "docs": len(r.get("pdfs") or {}), "dep": r.get("dep", "")}
+        else: sites_pub[r["dep"]] = {"joint": ok, "docs": len(r.get("pdfs") or {}), "hote": r.get("host", "")}
     etat_public = {"derniere_execution": PARIS.strftime("%Y-%m-%d %H:%M"), "fuseau": "Europe/Paris", "prefectures": nb_pref, "communes": nb_com, "sites_joints": joints,
                    "detectes_passage": len(nouveaux), "detectes_24h": sum(1 for i in items if (i.get("detecte_le") or "") >= seuil24),
-                   "total_veille": len(items), "source": "github-actions", "frequence_minutes": 30}
-    try: journal = json.loads(get(f"{SITE}/data/journal-public.json") or "[]")
-    except Exception: journal = []
-    if not isinstance(journal, list): journal = []
-    evts = [{"quand": PARIS.strftime("%Y-%m-%d %H:%M"), "type": "passage", "texte": f"Passage de veille : {joints} sites joints sur {len(resultats)} ({nb_pref} préfectures, {nb_com} communes), {len(nouveaux)} acte{'s' if len(nouveaux) > 1 else ''} relevé{'s' if len(nouveaux) > 1 else ''}."}]
+                   "total_veille": len(items), "source": "github-actions", "frequence_minutes": 30, "documents_lus": stats["docs_lus"], "actes_retenus": stats["actes_retenus"],
+                   "pdf_lus_passage": min(len(a_lire), MAX_PDF), "sites": sites_pub}
+    # cumuls depuis la création (repris du précédent état publié)
+    cp = etat_prec.get("cumul") if isinstance(etat_prec, dict) and isinstance(etat_prec.get("cumul"), dict) else {}
+    etat_public["cumul"] = {"depuis": cp.get("depuis") or PARIS.strftime("%Y-%m-%d"), "passages": int(cp.get("passages", 0)) + 1,
+                            "documents_lus": int(cp.get("documents_lus", 0)) + min(len(a_lire), MAX_PDF), "actes_releves": int(cp.get("actes_releves", 0)) + len(nouveaux),
+                            "sites_joints": int(cp.get("sites_joints", 0)) + joints}
+    # mode : veille renforcée le vendredi soir et le samedi matin (créneaux habituels des arrêtés d'interdiction)
+    wd, hh = PARIS.weekday(), PARIS.hour
+    etat_public["mode"] = "renforcé" if (wd == 4 and 16 <= hh <= 22) or (wd == 5 and 7 <= hh <= 13) else "normal"
+    etat_public["frequence_minutes"] = 15 if etat_public["mode"] == "renforcé" else (60 if 1 <= hh <= 5 else 30)
+    journal = journal0
+    injoignables = sorted([r["dep"] for r in resultats if not r.get("commune") and not (r.get("rss_ok") or r.get("pdfs"))]) + sorted([r["commune"] for r in resultats if r.get("commune") and not (r.get("rss_ok") or r.get("pdfs"))])
+    evts = [{"quand": PARIS.strftime("%Y-%m-%d %H:%M"), "type": "passage", "texte": f"Passage de veille : {joints} sites joints sur {len(resultats)} ({nb_pref} préfectures, {nb_com} communes), {min(len(a_lire), MAX_PDF)} document{'s' if min(len(a_lire), MAX_PDF) > 1 else ''} lu{'s' if min(len(a_lire), MAX_PDF) > 1 else ''}, {len(nouveaux)} acte{'s' if len(nouveaux) > 1 else ''} relevé{'s' if len(nouveaux) > 1 else ''}.",
+             "joints": joints, "total": len(resultats), "injoignables": injoignables[:40], "lus": min(len(a_lire), MAX_PDF), "releves": len(nouveaux), "duree_s": int(time.time() - t0)}]
     for it in [n for n in nouveaux if n.get("contestable", True)][:20]:
         lieu = it.get("commune") or f"département {it['departement']}"
-        evts.append({"quand": PARIS.strftime("%Y-%m-%d %H:%M"), "type": "detection", "texte": f"Acte relevé, {lieu} : {it['titre'][:140]}", "url": it.get("url", "")})
+        evts.append({"quand": PARIS.strftime("%Y-%m-%d %H:%M"), "type": "detection", "texte": f"Acte relevé, {lieu} : {it['titre'][:140]}", "url": it.get("url", ""), "dep": it["departement"], "commune": it.get("commune", ""), "date_acte": it.get("date", ""), "fin": it.get("fin", ""), "source": it.get("flux", "")})
     journal = (evts + journal)[:400]
     notifier_site([n for n in nouveaux if n.get("contestable", True)])
     for it in [n for n in nouveaux if n.get("contestable", True)][:10]:
         notifier(f"Dép. {it['departement']} : {it['titre'][:80]}", (it["resume"] or it["flux"])[:300], it["url"])
     if not FTP_HOST:
         log("FTP non configuré : résultats écrits localement dans sortie/"); os.makedirs("sortie", exist_ok=True)
-        pub = [{k: v for k, v in r.items() if k not in ("analyse", "fiche", "voie", "fin", "statut", "detecte_le", "publie")} for r in registre if r.get("publie", True)]
-        for n, o in (("veille.json", etat), ("veille-public.json", public), ("arretes.json", registre), ("arretes-public.json", pub), ("etat-veille.json", etat_public), ("journal-public.json", journal)):
+        for n, o in (("veille.json", etat), ("veille-public.json", public), ("arretes.json", registre), ("etat-veille.json", etat_public), ("journal-public.json", journal)):
             open(f"sortie/{n}", "w", encoding="utf-8").write(json.dumps(o, ensure_ascii=False, indent=2))
         return
     f = ftp_connect()
     if not f: sys.exit("Connexion FTP impossible")
     f.cwd(FTP_DIR + "/data")
-    pub = [{k: v for k, v in r.items() if k not in ("analyse", "fiche", "voie", "fin", "statut", "detecte_le", "publie")} for r in registre if r.get("publie", True)]
-    for n, o in (("veille.json", etat), ("veille-public.json", public), ("arretes.json", registre), ("arretes-public.json", pub), ("etat-veille.json", etat_public), ("journal-public.json", journal)):
+    sorties = [("veille.json", etat), ("veille-public.json", public), ("etat-veille.json", etat_public), ("journal-public.json", journal)]
+    if registre_lu: sorties.append(("arretes.json", registre))   # arretes-public.json est produit par le site lors de la publication manuelle
+    for n, o in sorties:
         ftp_put(f, n, (json.dumps(o, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
     f.quit(); log("Envoyé sur le site.")
 
