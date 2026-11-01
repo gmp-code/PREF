@@ -25,6 +25,7 @@ AUTO_REGISTRE = os.environ.get("AUTO_REGISTRE", "1") == "1"
 AUTO_PUBLIER = os.environ.get("AUTO_PUBLIER", "0") == "1"   # 1 = publier sans relecture ; 0 = déposer dans le tableau de bord, publication manuelle
 UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
 MAX_PDF = int(os.environ.get("MAX_PDF", "150"))
+DIAG = os.environ.get("DIAG", "1") == "1"   # diagnostic du découpage dans le journal (mettre 0 pour alléger)
 MAX_AGE_DAYS = 45
 NOW = dt.datetime.now(dt.timezone.utc)
 try:
@@ -703,8 +704,16 @@ def main():
         if commune and not pertinent_commune(t + " " + txt): continue
         if not any(rx.search(txt) for k, lib, rx in CATEGORIES_RX): stats["sans_objet"] += 1; continue   # aucune catégorie de l'objet dans tout le document
         arretes = analyser_arretes(txt)
-        nb_blocs = len(decouper_raa(txt))
+        blocs = decouper_raa(txt); nb_blocs = len(blocs)
         log(f"  lu : {commune or ('dép. ' + dep)} · {(t or os.path.basename(u))[:70]} · {len(txt)//1000} k car., {nb_blocs} acte(s) découpé(s), {len(arretes)} retenu(s)")
+        if DIAG and not arretes:
+            if nb_blocs:
+                for bt, bb in blocs[:8]:
+                    pos, neg, ok = categoriser(bt, bb)
+                    log(f"      - {bt[:110]} | cat={pos} excl={neg}")
+            elif len(txt) > 20000:
+                tetes = [l.strip() for l in txt.split("\n") if re.search(r"arr[êe]t[ée]", l, re.I) and len(l.strip()) < 160][:8]
+                log("      - aucun en-tête reconnu ; lignes contenant 'arrêté' : " + " || ".join(tetes))
         if not arretes: continue   # des mots de l'objet, mais aucun acte retenu après découpage et classification
         stats["actes_retenus"] += len(arretes); stats["docs_lus"] += 1
         for k, a in enumerate(arretes):
