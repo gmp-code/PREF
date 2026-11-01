@@ -1,0 +1,30 @@
+name: Veille des préfectures
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"   # toutes les 30 minutes (heure UTC)
+  workflow_dispatch:         # bouton "Run workflow" pour lancer à la main
+
+concurrency:
+  group: veille
+  cancel-in-progress: false
+
+jobs:
+  veille:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Outils
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils
+      - name: Collecte et mise à jour du site
+        env:
+          SITE_URL: ${{ vars.SITE_URL || 'https://front-administratif.fr' }}
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASS: ${{ secrets.FTP_PASS }}
+          FTP_DIR: ${{ vars.FTP_DIR || '/public_html' }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          NOTIF_CLE: ${{ secrets.NOTIF_CLE }}
+          AUTO_REGISTRE: ${{ vars.AUTO_REGISTRE || '1' }}
+        run: python3 collecteur.py
