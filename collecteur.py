@@ -52,14 +52,17 @@ MOTS_RSS = ["manifestation", "manifester", "rassemblement", "cortège", "attroup
 
 def log(*a): print(*a, flush=True)
 
+ERREURS = {}   # hôte -> dernière erreur HTTP/réseau (diagnostic)
 def get(url, timeout=25, binary=False):
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept-Language": "fr-FR,fr;q=0.9", "Accept": "*/*"})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             data = r.read(25 * 1024 * 1024)
             return data if binary else data.decode(r.headers.get_content_charset() or "utf-8", "replace")
+    except urllib.error.HTTPError as e:
+        ERREURS[urllib.parse.urlsplit(url).netloc] = f"HTTP {e.code}"; return None
     except Exception as e:
-        return None
+        ERREURS[urllib.parse.urlsplit(url).netloc] = type(e).__name__ + (": " + str(e)[:60] if str(e) else ""); return None
 
 def propre(url):
     p = urllib.parse.urlsplit(url)
@@ -659,6 +662,12 @@ def main():
         resultats = [f.result() for f in cf.as_completed(futs)]
     log(f"Communes surveillées : {len(communes)}")
     log(f"Collecte : {len(resultats)} sites en {time.time()-t0:.0f}s")
+    pref_ok = [r for r in resultats if not r.get("commune") and (r.get("rss_ok") or r.get("pdfs"))]
+    pref_ko = [r for r in resultats if not r.get("commune") and not (r.get("rss_ok") or r.get("pdfs"))]
+    motifs = {}
+    for r in pref_ko: motifs[ERREURS.get(r.get("host", ""), "réponse vide")] = motifs.get(ERREURS.get(r.get("host", ""), "réponse vide"), 0) + 1
+    log(f"Préfectures : {len(pref_ok)} jointes, {len(pref_ko)} sans flux ni document" + (" : " + ", ".join(f"{k} ×{v}" for k, v in sorted(motifs.items(), key=lambda x: -x[1])) if motifs else ""))
+    if pref_ko: log("   sans réponse : " + ", ".join(sorted(r["dep"] for r in pref_ko)[:101]))
     a_lire = []
     for r in sorted(resultats, key=lambda x: x["dep"]):
         etat.setdefault("sites", {})[r["dep"]] = {"hote": r["host"], "flux_ok": r["rss_ok"], "pdf_trouves": len(r["pdfs"]), "derniere_verif": NOW.strftime("%Y-%m-%d %H:%M")}
@@ -686,6 +695,12 @@ def main():
         d = date_titre(x[3] or "") or date_titre(x[2].replace("%20", " "))
         return (d or "0000-00-00", 1 if not x[4] else 0)   # les plus récents d'abord, préfectures avant communes à date égale
     a_lire.sort(key=_cle, reverse=True)
+    quota, repartis, reste_q = {}, [], []
+    for x in a_lire:
+        k = x[4] or x[0]
+        if quota.get(k, 0) < 12: quota[k] = quota.get(k, 0) + 1; repartis.append(x)
+        else: reste_q.append(x)
+    a_lire = repartis + reste_q
     log(f"PDF nouveaux à lire : {len(a_lire)} récents (max {MAX_PDF} ce passage), {len(anciens)} anciens écartés sans lecture")
     reste = a_lire[MAX_PDF:]
     stats = {"docs_lus": 0, "actes_retenus": 0, "retrogrades": 0, "illisibles": 0, "sans_objet": 0, "telecharges": 0}
