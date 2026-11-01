@@ -662,6 +662,32 @@ def main():
         resultats = [f.result() for f in cf.as_completed(futs)]
     log(f"Communes surveillées : {len(communes)}")
     log(f"Collecte : {len(resultats)} sites en {time.time()-t0:.0f}s")
+    pref_ko = [r for r in resultats if not r.get("commune") and not (r.get("rss_ok") or r.get("pdfs"))]
+    if len(pref_ko) >= 20:
+        log(f"Préfectures coupées : {len(pref_ko)} ; repêchage au navigateur complet, une à la fois (test de blocage)...")
+        rep_ok = 0
+        try:
+            from playwright.sync_api import sync_playwright
+            with sync_playwright() as p:
+                b = p.chromium.launch(args=["--no-sandbox"]); ctx = b.new_context(user_agent=UA, locale="fr-FR"); pg = ctx.new_page()
+                t1 = time.time()
+                for r in pref_ko:
+                    if time.time() - t1 > 420: log("   repêchage interrompu (délai)"); break
+                    try:
+                        pg.goto(f"https://{r['host']}/syndication/flux/rss_feed_69", timeout=20000, wait_until="domcontentloaded")
+                        x = pg.evaluate("new XMLSerializer().serializeToString(document)")
+                        if "<item" in x or "<entry" in x:
+                            items = parse_rss(x)
+                            if items:
+                                r["rss_ok"] += 1; rep_ok += 1
+                                for it in items: it["flux"] = "Actualités (navigateur)"; r["rss_items"].append(it)
+                        time.sleep(1.5)
+                    except Exception as e:
+                        ERREURS[r["host"]] = "navigateur : " + str(e)[:50]
+                b.close()
+        except Exception as e:
+            log("   repêchage impossible :", str(e)[:120])
+        log(f"   repêchage : {rep_ok} préfecture(s) lue(s) au navigateur sur {len(pref_ko)}" + (" => l'adresse GitHub est bloquée par gouv.fr" if rep_ok == 0 else " => le navigateur passe, le script simple est bloqué"))
     pref_ok = [r for r in resultats if not r.get("commune") and (r.get("rss_ok") or r.get("pdfs"))]
     pref_ko = [r for r in resultats if not r.get("commune") and not (r.get("rss_ok") or r.get("pdfs"))]
     motifs = {}
