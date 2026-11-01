@@ -256,21 +256,59 @@ def collecte_prefecture(dep, host):
     return res
 
 def collecte_paris():
+    """Préfecture de police de Paris : site protégé contre les robots simples. Trois tentatives :
+    RSS direct, navigateur invisible (Playwright) sur les actualités et le recueil des actes, et le widget public de X (@prefpolice)."""
     host = "www.prefecturedepolice.interieur.gouv.fr"
     res = {"dep": "75", "host": host, "rss_ok": 0, "rss_items": [], "pdfs": {}}
-    for u, titre in {f"https://{host}/rss/actualites.xml": "Actualités PP (RSS)", f"https://{host}/actualites-et-presse/actualites": "Actualités PP (page)"}.items():
-        x = get(u)
-        if not x: continue
-        if "requires JS enabled and cookies" in x[:2000]:
-            log("Préfecture de police : protection anti-robot active sur", u); continue
+    x = get(f"https://{host}/rss/actualites.xml")
+    if x and "requires JS enabled and cookies" not in x[:2000] and ("<rss" in x[:500] or "<feed" in x[:500]):
         res["rss_ok"] += 1
-        if "<rss" in x[:500] or "<feed" in x[:500]:
-            for it in parse_rss(x): it["flux"] = titre; res["rss_items"].append(it)
+        for it in parse_rss(x): it["flux"] = "Actualités PP (RSS)"; res["rss_items"].append(it)
+    else:
+        log("Préfecture de police : RSS bloqué, passage par navigateur")
+        try:
+            try:
+                from playwright.sync_api import sync_playwright
+            except ImportError:
+                log("Installation du navigateur invisible (une fois par passage)...")
+                subprocess.run([sys.executable, "-m", "pip", "install", "-q", "playwright"], check=True, timeout=300)
+                subprocess.run([sys.executable, "-m", "playwright", "install", "--with-deps", "chromium"], check=False, timeout=600, capture_output=True)
+                from playwright.sync_api import sync_playwright
+            with sync_playwright() as p:
+                b = p.chromium.launch(args=["--no-sandbox"]); ctx = b.new_context(user_agent=UA, locale="fr-FR"); pg = ctx.new_page()
+                pages = [(f"https://{host}/actualites-et-presse/actualites", "Actualités PP (navigateur)"),
+                         (f"https://{host}/recueil-des-actes-administratifs", "RAA PP (navigateur)")]
+                for u, titre in pages:
+                    try:
+                        pg.goto(u, timeout=45000, wait_until="domcontentloaded"); pg.wait_for_timeout(4000)
+                        html_ = pg.content()
+                        if "requires JS enabled and cookies" in html_[:3000]: log("Préfecture de police : protection toujours active sur", u); continue
+                        res["rss_ok"] += 1
+                        for pu, pt in liens_pdf(html_, u).items():
+                            res["pdfs"][pu] = pt
+                        for m in re.finditer(r'<a[^>]+href="([^"]+)"[^>]*>([^<]{15,200})</a>', html_):
+                            t = html.unescape(m.group(2)).strip()
+                            if re.search(r"arr[êe]t|manifest|interdiction|p[ée]rim[eè]tre|drone|rassemblement", t, re.I):
+                                res["rss_items"].append({"titre": t, "url": urllib.parse.urljoin(u, m.group(1)), "desc": "", "date": "", "flux": titre})
+                    except Exception as e:
+                        log("Préfecture de police, navigateur :", str(e)[:120])
+                b.close()
+        except Exception as e:
+            log("Playwright indisponible :", str(e)[:120])
+    # Widget public X : derniers messages de @prefpolice
+    try:
+        xw = get("https://syndication.twitter.com/srv/timeline-profile/screen-name/prefpolice", timeout=20)
+        if xw and "prefpolice" in xw:
+            n = 0
+            for m in re.finditer(r'"full_text":"(.*?)"(?:,|})', xw):
+                txt = m.group(1).encode("utf-8").decode("unicode_escape", "ignore").replace("\\n", " ")
+                if re.search(r"arr[êe]t|interdiction|manifest|p[ée]rim[eè]tre|drone|a[ée]ronef|rassemblement", txt, re.I):
+                    res["rss_items"].append({"titre": txt[:200], "url": "https://x.com/prefpolice", "desc": txt, "date": "", "flux": "X @prefpolice"}); n += 1
+            res["rss_ok"] += 1; log(f"X @prefpolice : widget lu, {n} message(s) pertinent(s)")
         else:
-            for m in re.finditer(r'href="([^"]+)"[^>]*>([^<]{15,200})</a>', x):
-                t = html.unescape(m.group(2)).strip()
-                if re.search(r"arr[êe]t|manifest|interdiction|p[ée]rim[eè]tre|drone", t, re.I):
-                    res["rss_items"].append({"titre": t, "url": urllib.parse.urljoin(f"https://{host}/", m.group(1)), "desc": "", "date": "", "flux": titre})
+            log("X @prefpolice : widget indisponible")
+    except Exception as e:
+        log("X @prefpolice :", str(e)[:120])
     return res
 
 def raa_datagouv(vus):
