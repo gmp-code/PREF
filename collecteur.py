@@ -281,9 +281,16 @@ def notifier(titre, corps, url=""):
 
 def main():
     prefs = json.loads(open("prefectures.json", encoding="utf-8").read()); prefs.pop("_commentaire", None)
-    etat = json.loads(get(f"{SITE}/data/veille.json") or '{"items":[],"sites":{}}')
-    registre = json.loads(get(f"{SITE}/data/arretes.json") or "[]")
-    connus = {i["id"]: i for i in etat.get("items", [])}
+    try: etat = json.loads(get(f"{SITE}/data/veille.json") or "{}")
+    except Exception: etat = {}
+    if not isinstance(etat, dict): etat = {}
+    if not isinstance(etat.get("items"), list): etat["items"] = []
+    if not isinstance(etat.get("sites"), dict): etat["sites"] = {}
+    if not isinstance(etat.get("raa_vus"), list): etat["raa_vus"] = []
+    try: registre = json.loads(get(f"{SITE}/data/arretes.json") or "[]")
+    except Exception: registre = []
+    if not isinstance(registre, list): registre = []
+    connus = {i["id"]: i for i in etat["items"] if isinstance(i, dict) and i.get("id")}
     vus = set(etat.get("raa_vus", []))
     nouveaux = []
     t0 = time.time()
