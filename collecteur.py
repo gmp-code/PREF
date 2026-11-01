@@ -556,8 +556,12 @@ def ftp_get(f, remote):
     except Exception as e: log("FTP lecture", remote, ":", e); return None
 
 def lire_site(f, nom, defaut):
-    """Lit data/<nom> par FTP (sinon HTTP). Renvoie (objet, lu) : lu=False signifie qu'on n'écrira pas ce fichier."""
+    """Lit data/<nom> par FTP, sinon par la page de secours admin/donnees.php (jeton NOTIF_CLE), sinon en HTTP public.
+    Renvoie (objet, lu) : lu=False signifie qu'on n'écrira pas ce fichier."""
     txt = ftp_get(f, nom) if f else None
+    if txt is None and NOTIF_CLE:
+        txt = get(f"{SITE}/admin/donnees.php?cle={urllib.parse.quote(NOTIF_CLE)}&f={nom}")
+        if txt is not None and txt.lstrip().startswith('{"erreur"'): txt = None
     if txt is None: txt = get(f"{SITE}/data/{nom}")
     if txt is None: return defaut, False
     try: o = json.loads(txt)
@@ -618,14 +622,21 @@ def recent_doc(u, t):
 def main():
     preparer_navigateur()
     prefs = json.loads(open("prefectures.json", encoding="utf-8").read()); prefs.pop("_commentaire", None)
-    f0 = ftp_connect() if FTP_HOST else None
-    if f0 and not ftp_cd_data(f0):
-        try: f0.quit()
-        except Exception: pass
+    f0 = None
+    for essai in range(3):   # le FTP de l'hébergeur ne répond pas toujours du premier coup
+        f0 = ftp_connect() if FTP_HOST else None
+        if f0 and ftp_cd_data(f0): break
+        if f0:
+            try: f0.quit()
+            except Exception: pass
         f0 = None
-    etat, _ = lire_site(f0, "veille.json", {})
+        if not FTP_HOST: break
+        log(f"FTP : lecture impossible (essai {essai + 1}/3), nouvelle tentative dans 10 s"); time.sleep(10)
+    etat, etat_lu = lire_site(f0, "veille.json", {})
     registre, registre_lu = lire_site(f0, "arretes.json", [])
-    journal0, _ = lire_site(f0, "journal-public.json", [])
+    journal0, journal_lu = lire_site(f0, "journal-public.json", [])
+    if not etat_lu and FTP_HOST:
+        sys.exit("ARRÊT : la mémoire de la veille (veille.json) est illisible par FTP et par la page de secours ; rien n'est écrit pour ne pas effacer l'existant. Vérifier FTP_HOST/FTP_DIR et le secret NOTIF_CLE.")
     decisions, _ = lire_site(f0, "decisions.json", [])
     etat_prec, _ = lire_site(f0, "etat-veille.json", {})
     if f0:
@@ -676,7 +687,7 @@ def main():
     a_lire.sort(key=_cle, reverse=True)
     log(f"PDF nouveaux à lire : {len(a_lire)} récents (max {MAX_PDF} ce passage), {len(anciens)} anciens écartés sans lecture")
     reste = a_lire[MAX_PDF:]
-    stats = {"docs_lus": 0, "actes_retenus": 0, "retrogrades": 0}
+    stats = {"docs_lus": 0, "actes_retenus": 0, "retrogrades": 0, "illisibles": 0, "sans_objet": 0, "telecharges": 0}
     # Apprentissage : catégories que l'association écarte presque toujours (au moins 5 décisions, 80 % d'écartés)
     cat_dec = {}
     for d in decisions if isinstance(decisions, list) else []:
@@ -686,11 +697,14 @@ def main():
     for dep, host, u, t, commune, autorite in a_lire[:MAX_PDF]:
         data = get(propre(u), timeout=60, binary=True)
         if not data: vus.discard(u); continue
+        stats["telecharges"] += 1
         txt = pdf_texte(data)
-        if not txt: continue
+        if not txt: stats["illisibles"] += 1; continue
         if commune and not pertinent_commune(t + " " + txt): continue
-        if not any(rx.search(txt) for k, lib, rx in CATEGORIES_RX): continue   # aucune catégorie de l'objet dans tout le document
+        if not any(rx.search(txt) for k, lib, rx in CATEGORIES_RX): stats["sans_objet"] += 1; continue   # aucune catégorie de l'objet dans tout le document
         arretes = analyser_arretes(txt)
+        nb_blocs = len(decouper_raa(txt))
+        log(f"  lu : {commune or ('dép. ' + dep)} · {(t or os.path.basename(u))[:70]} · {len(txt)//1000} k car., {nb_blocs} acte(s) découpé(s), {len(arretes)} retenu(s)")
         if not arretes: continue   # des mots de l'objet, mais aucun acte retenu après découpage et classification
         stats["actes_retenus"] += len(arretes); stats["docs_lus"] += 1
         for k, a in enumerate(arretes):
@@ -725,7 +739,7 @@ def main():
     items = sorted(connus.values(), key=lambda i: (i.get("date", ""), i.get("detecte_le", "")), reverse=True)
     etat.update({"items": items, "raa_vus": sorted(vus)[-8000:], "derniere_execution": NOW.strftime("%Y-%m-%d %H:%M"), "nouveaux_derniere_execution": len(nouveaux), "collecteur": "github-actions"})
     public = [{k: i.get(k, "") for k in ("departement", "date", "fin", "titre", "voie", "resume", "url", "detecte_le", "flux")} for i in items[:200] if not i.get("ignore")]
-    log(f"Documents avec au moins un acte retenu : {stats['docs_lus']}, actes retenus : {stats['actes_retenus']}, rétrogradés par apprentissage : {stats['retrogrades']}")
+    log(f"Documents téléchargés : {stats['telecharges']}, texte illisible : {stats['illisibles']}, sans mot de l'objet : {stats['sans_objet']}, avec au moins un acte retenu : {stats['docs_lus']}, actes retenus : {stats['actes_retenus']}, rétrogradés par apprentissage : {stats['retrogrades']}")
     log(f"Nouveaux : {len(nouveaux)}, ajoutés au registre : {ajoutes}, total veille : {len(items)}")
     # État public de la veille (bandeau du site) et journal public (page "Journal de veille")
     joints = sum(1 for r in resultats if r.get("rss_ok") or r.get("pdfs"))
