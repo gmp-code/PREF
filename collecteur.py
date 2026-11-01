@@ -22,13 +22,31 @@ NOTIF_CLE = os.environ.get("NOTIF_CLE", "")          # jeton VEILLE_CRON_CLE du 
 RAA_API = "https://tabular-api.data.gouv.fr/api/resources/83c960be-1bb6-4b74-bbba-dcd6dcc3fbdf/data/"
 RAA_PAGES = int(os.environ.get("RAA_PAGES", "30"))
 AUTO_REGISTRE = os.environ.get("AUTO_REGISTRE", "1") == "1"
+AUTO_PUBLIER = os.environ.get("AUTO_PUBLIER", "0") == "1"   # 1 = publier sans relecture ; 0 = déposer dans le tableau de bord, publication manuelle
 UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
 MAX_PDF = int(os.environ.get("MAX_PDF", "80"))
 MAX_AGE_DAYS = 45
 NOW = dt.datetime.now(dt.timezone.utc)
+try:
+    from zoneinfo import ZoneInfo; PARIS = NOW.astimezone(ZoneInfo("Europe/Paris"))
+except Exception: PARIS = NOW
 
 FORTS = re.compile(r"interdiction de manifest|interdisant .{0,80}manifest|manifestation.{0,60}interdi|interdiction .{0,40}rassemblement|rassemblement.{0,60}interdi|interdiction .{0,40}cort[eè]ge|attroupement|couvre[- ]feu|p[ée]rim[eè]tre .{0,30}(interdiction|s[ée]curit[ée]|protection)|captation.{0,60}(images|a[ée]ronef|drone)|cam[ée]ras? .{0,30}a[ée]ronefs?|dissimulation du visage|mineurs non accompagn|interdiction .{0,60}circul|libert[ée] de manifest|aller et venir|d[ée]claration de manifestation", re.I | re.S)
 BANALS = re.compile(r"manifestation sportive|course cycliste|rallye|trail|marathon|chasse|p[êe]che en|brûlage|feux? de for[êe]t|s[ée]cheresse|grippe aviaire|enqu[êe]te publique|ICPE|[ée]olien", re.I)
+# Communes : filtre durci. Expression du coeur de l'objet obligatoire ; vocabulaire de gestion exclu d'office.
+COMMUNE_FORTS = re.compile(r"interdi\w+ .{0,80}(manifest|rassemblement|cort[eè]ge|attroupement)|(manifest|rassemblement|cort[eè]ge|attroupement)\w* .{0,60}interdi|attroupement|couvre[- ]feu|p[ée]rim[eè]tre (de )?(s[ée]curit[ée]|protection)|captation.{0,60}(images|a[ée]ronef|drone)|drone|vid[ée]oprotection|dissimulation du visage|mineurs? non accompagn|(station(nement)? assise|position allong[ée]e|mendicit[ée]|regroupement)|distribution (gratuite )?(de nourriture|alimentaire)|consommation d.alcool sur la voie publique", re.I | re.S)
+COMMUNE_CIRCULATION = re.compile(r"interdiction .{0,60}circul", re.I)
+COMMUNE_ORDRE = re.compile(r"ordre public|manifest|rassemblement|cort[eè]ge|attroupement|s[ée]curit[ée] des personnes", re.I)
+COMMUNE_GESTION = re.compile(r"travaux|chantier|stationnement|d[ée]m[ée]nagement|[ée]lagage|nettoyage|nettoiement|fermeture (de la |du |de l.)?(piscine|gymnase|parc|jardin|cimeti[eè]re|stade|biblioth[eè]que|march[ée])|march[ée] (hebdomadaire|forain)|terrasse|occupation du domaine public|d[ée]bit de boissons|licence (ii|iii|iv)|feu d.artifice|course|f[êe]te (foraine|de quartier|votive)|c[ée]r[ée]monie|braderie|brocante|vide[- ]greniers?|tournage|grue|[ée]chafaudage|benne|livraison|emm[ée]nagement|d[ée]ratisation|p[ée]ril|insalubrit[ée]|num[ée]rotage|alignement|permis de (construire|d[ée]molir|am[ée]nager)|d[ée]l[ée]gation de (signature|fonction)|r[ée]gie|nomination|d[ée]signation|tarif", re.I)
+
+def pertinent_commune(txt):
+    """Un arrêté municipal n'est retenu que s'il porte le coeur de l'objet et aucun vocabulaire d'acte de gestion."""
+    t = txt[:6000]
+    if re.search(r"manifestation (sportive|culturelle|commerciale|a[ée]rienne|nautique)|course (cycliste|p[ée]destre)|rallye|marathon|trail", t, re.I): return False
+    if COMMUNE_FORTS.search(t): return True           # coeur de l'objet : retenu même si l'acte parle aussi de stationnement
+    if COMMUNE_GESTION.search(t): return False        # pour le reste, le vocabulaire de gestion écarte
+    return bool(COMMUNE_CIRCULATION.search(t) and COMMUNE_ORDRE.search(t))
+
 MOTS_RSS = ["manifestation", "manifester", "rassemblement", "cortège", "attroupement", "interdiction", "interdit", "périmètre", "couvre-feu", "drone", "aéronef", "captation", "caméra", "surveillance", "ordre public", "circulation", "liberté", "dissimulation du visage", "mineurs non accompagnés"]
 
 def log(*a): print(*a, flush=True)
@@ -255,6 +273,52 @@ def collecte_prefecture(dep, host):
     res["pdfs"] = page_raa(host)
     return res
 
+def collecte_commune(c):
+    """Page d'actes d'une commune : PDF nouveaux (profondeur 1 sur les sous-pages de l'année), lecture par navigateur si la page l'exige."""
+    res = {"dep": str(c.get("departement", "")), "host": urllib.parse.urlsplit(c["url"]).netloc, "rss_ok": 0, "rss_items": [], "pdfs": {}, "commune": c["commune"], "autorite": c.get("autorite", "Maire de " + c["commune"])}
+    urls = [c["url"]] + list(c.get("urls_secondaires") or [])
+    if c.get("rss"):
+        x = get(c["rss"])
+        if x:
+            res["rss_ok"] += 1
+            for it in parse_rss(x): it["flux"] = "Actualités " + c["commune"]; res["rss_items"].append(it)
+    if c.get("type") == "api_json":
+        j = get(c["url"], timeout=40)
+        try: d = json.loads(j or "{}")
+        except Exception: d = {}
+        recs = d.get("results") or d.get("records") or []
+        res["rss_ok"] += 1 if recs else 0
+        for r0 in recs:
+            f = r0.get("record", {}).get("fields", r0) if isinstance(r0, dict) else {}
+            titre = " ".join(str(f.get(k, "")) for k in ("objet", "titre", "title", "libelle", "intitule", "nom") if f.get(k))
+            lien = next((str(v) for k, v in f.items() if isinstance(v, str) and v.lower().startswith("http") and ".pdf" in v.lower()), "")
+            if not lien:
+                for v in f.values():
+                    if isinstance(v, dict) and str(v.get("url", "")).lower().endswith(".pdf"): lien = v["url"]; break
+            if lien and pertinent_commune(titre or lien): res["pdfs"][lien] = titre or os.path.basename(lien)
+        log(f"Commune {c['commune']} (api_json) : {len(res['pdfs'])} acte(s) pertinent(s) sur l'API")
+        return res
+    for u in urls[:4]:
+        page = get(u)
+        if page is None or c.get("type") in ("portail_js", "liste_paginee", "inconnu") and len(liens_pdf(page or "", u)) < 3:
+            try:
+                from playwright.sync_api import sync_playwright
+                with sync_playwright() as p:
+                    b = p.chromium.launch(args=["--no-sandbox"]); pg = b.new_context(user_agent=UA, locale="fr-FR").new_page()
+                    pg.goto(u, timeout=45000, wait_until="networkidle"); pg.wait_for_timeout(2500); page = pg.content(); b.close()
+            except Exception as e:
+                log(c["commune"], ": page inaccessible :", str(e)[:100]); continue
+        res["rss_ok"] += 1
+        res["pdfs"].update(liens_pdf(page, u))
+        for m in re.finditer(r'href="([^"]+)"[^>]*>([^<]*(?:%d|%s)[^<]*)</a>' % (NOW.year, NOW.strftime("%B")), page, re.I):
+            su = urllib.parse.urljoin(u, html.unescape(m.group(1)))
+            if ".pdf" in su.lower() or su in urls: continue
+            sp = get(su)
+            if sp: res["pdfs"].update(liens_pdf(sp, su))
+            if len(res["pdfs"]) > 400: break
+    log(f"Commune {c['commune']} ({c.get('type','')}) : {'page lue' if res['rss_ok'] else 'PAGE NON LUE'}, {len(res['pdfs'])} PDF trouvé(s)")
+    return res
+
 def collecte_paris():
     """Préfecture de police de Paris : site protégé contre les robots simples. Trois tentatives :
     RSS direct, navigateur invisible (Playwright) sur les actualités et le recueil des actes, et le widget public de X (@prefpolice)."""
@@ -343,8 +407,17 @@ def notifier_site(nouveaux):
         log("notifier.php :", e)
 
 def expirer(registre):
-    """Passe en 'expiré' les actes 'à contester' dont le délai de recours est dépassé."""
+    """Passe en 'expiré' les actes publiés 'à contester' dont le délai est dépassé ; efface les détectés jamais publiés et expirés."""
     n = 0; auj = NOW.date()
+    for r in list(registre):
+        if r.get("publie") is False:
+            d = r.get("date") or ""; fin = r.get("fin") or ""
+            try:
+                dd = dt.date.fromisoformat(d) if d else None; dfin = dt.date.fromisoformat(fin) if fin else None
+            except ValueError:
+                continue
+            if dd and (auj - dd).days > 62 and not (dfin and dfin >= auj):
+                registre.remove(r); n += 1
     for r in registre:
         if (r.get("statut") or "à contester") != "à contester": continue
         fin = r.get("fin") or ""; d = r.get("date") or ""
@@ -394,9 +467,13 @@ def main():
     vus = set(etat.get("raa_vus", []))
     nouveaux = []
     t0 = time.time()
+    try: communes = json.loads(open("communes.json", encoding="utf-8").read())
+    except Exception: communes = []
+    communes = [c for c in communes if isinstance(c, dict) and c.get("url")]
     with cf.ThreadPoolExecutor(max_workers=10) as ex:
-        futs = [ex.submit(collecte_prefecture, d, h) for d, h in prefs.items() if d != "75"] + [ex.submit(collecte_paris)]
+        futs = [ex.submit(collecte_prefecture, d, h) for d, h in prefs.items() if d != "75"] + [ex.submit(collecte_paris)] + [ex.submit(collecte_commune, c) for c in communes]
         resultats = [f.result() for f in cf.as_completed(futs)]
+    log(f"Communes surveillées : {len(communes)}")
     log(f"Collecte : {len(resultats)} sites en {time.time()-t0:.0f}s")
     a_lire = []
     for r in sorted(resultats, key=lambda x: x["dep"]):
@@ -407,7 +484,7 @@ def main():
             if iid in connus: continue
             # les PDF joints à l'actualité seront lus comme des recueils
             for pu, pt in pdfs_depuis_page(it["url"]).items():
-                if pu not in vus: vus.add(pu); a_lire.append((r["dep"], r["host"], pu, pt or it["titre"]))
+                if pu not in vus: vus.add(pu); a_lire.append((r["dep"], r["host"], pu, pt or it["titre"], r.get("commune", ""), r.get("autorite", "")))
             d = ""
             try: d = dt.datetime.strptime(it["date"][:25].strip(), "%a, %d %b %Y %H:%M:%S").strftime("%Y-%m-%d")
             except Exception: d = date_titre(it["titre"]) or NOW.strftime("%Y-%m-%d")
@@ -415,42 +492,44 @@ def main():
             connus[iid] = item; nouveaux.append(item)
         for u, t in r["pdfs"].items():
             if u in vus: continue
-            vus.add(u); a_lire.append((r["dep"], r["host"], u, t))
+            vus.add(u); a_lire.append((r["dep"], r["host"], u, t, r.get("commune", ""), r.get("autorite", "")))
     for x in raa_datagouv(vus):
-        vus.add(x[2]); a_lire.append(x)
+        vus.add(x[2]); a_lire.append(x + ("", ""))
     log(f"PDF nouveaux à lire : {len(a_lire)} (max {MAX_PDF} ce passage)")
     reste = a_lire[MAX_PDF:]
-    for dep, host, u, t in a_lire[:MAX_PDF]:
+    for dep, host, u, t, commune, autorite in a_lire[:MAX_PDF]:
         data = get(propre(u), timeout=60, binary=True)
         if not data: vus.discard(u); continue
         txt = pdf_texte(data)
         if not txt: continue
-        if BANALS.search(txt) and not FORTS.search(txt): continue
-        m = FORTS.search(txt)
-        if not m: continue
+        if commune:
+            if not pertinent_commune(t + " " + txt): continue
+        else:
+            if BANALS.search(txt) and not FORTS.search(txt): continue
+            if not FORTS.search(txt): continue
         arretes = analyser_arretes(txt) or [{"titre": t, "date": "", "fin": "", "voie": "à qualifier", "extraits": extraits(txt), "contestable": True}]
         for k, a in enumerate(arretes):
             iid = hashlib.sha1((u + "#" + str(k)).encode()).hexdigest()[:16]
             if iid in connus: continue
             cle_titre = re.sub(r"[^a-z0-9]+", " ", (a["titre"] or t).lower()).strip()[:120]
             if any(re.sub(r"[^a-z0-9]+", " ", c.get("titre", "").lower()).strip()[:120] == cle_titre and c.get("departement") == dep for c in connus.values()): continue
-            item = {"id": iid, "departement": dep, "hote": host, "flux": "RAA (contenu lu)",
+            item = {"id": iid, "departement": dep, "hote": host, "flux": ("Arrêté municipal, " + commune) if commune else "RAA (contenu lu)", "commune": commune, "autorite_detectee": autorite,
                     "date": a["date"] or date_titre(t + " " + os.path.basename(u)) or NOW.strftime("%Y-%m-%d"), "fin": a.get("fin", ""),
                     "titre": a["titre"] or t, "recueil": t, "voie": a["voie"], "contestable": a["contestable"], "analyse": a.get("analyse", []), "fiche": a.get("fiche", {}),
                     "resume": a["voie"] + (" | " + " [...] ".join(a["extraits"]) if a["extraits"] else ""), "url": u, "detecte_le": NOW.strftime("%Y-%m-%d %H:%M")}
             connus[iid] = item; nouveaux.append(item)
-    for dep, host, u, t in reste: vus.discard(u)   # seront lus au prochain passage
+    for x in reste: vus.discard(x[2])   # seront lus au prochain passage
     # registre automatique
     ajoutes = 0
     if AUTO_REGISTRE and nouveaux:
         urls = {x.get("url", "") for x in registre}
         for it in nouveaux:
             if not it["url"] or it["url"] in urls: continue
-            registre.append({"date": it["date"], "fin": it.get("fin", ""), "voie": it.get("voie", ""), "analyse": it.get("analyse", []), "fiche": it.get("fiche", {}), "commune": "", "departement": it["departement"],
-                             "autorite": "Préfet de police" if it["departement"] == "75" else f"Préfet (département {it['departement']})",
-                             "type": "Recueil des actes administratifs" if it["flux"].startswith("RAA") else "Publication préfectorale",
+            registre.append({"date": it["date"], "fin": it.get("fin", ""), "voie": it.get("voie", ""), "analyse": it.get("analyse", []), "fiche": it.get("fiche", {}), "commune": it.get("commune", ""), "departement": it["departement"],
+                             "autorite": it.get("autorite_detectee") or ("Préfet de police" if it["departement"] == "75" else f"Préfet (département {it['departement']})"),
+                             "type": "Arrêté municipal" if it.get("commune") else ("Recueil des actes administratifs" if it["flux"].startswith("RAA") else "Publication préfectorale"),
                              "objet": it["titre"] + (" : " + it["resume"][:300] if it["resume"] else ""), "url": it["url"], "auto": True,
-                             "statut": "à contester" if it.get("contestable", True) else "expiré", "detecte_le": it["detecte_le"]})
+                             "statut": "à contester" if it.get("contestable", True) else "expiré", "publie": AUTO_PUBLIER, "detecte_le": it["detecte_le"]})
             urls.add(it["url"]); it["au_registre"] = True; ajoutes += 1
         registre.sort(key=lambda x: x.get("date", ""), reverse=True)
     nexp = expirer(registre)
@@ -459,18 +538,35 @@ def main():
     etat.update({"items": items, "raa_vus": sorted(vus)[-8000:], "derniere_execution": NOW.strftime("%Y-%m-%d %H:%M"), "nouveaux_derniere_execution": len(nouveaux), "collecteur": "github-actions"})
     public = [{k: i.get(k, "") for k in ("departement", "date", "fin", "titre", "voie", "resume", "url", "detecte_le", "flux")} for i in items[:200] if not i.get("ignore")]
     log(f"Nouveaux : {len(nouveaux)}, ajoutés au registre : {ajoutes}, total veille : {len(items)}")
+    # État public de la veille (bandeau du site) et journal public (page "Journal de veille")
+    joints = sum(1 for r in resultats if r.get("rss_ok") or r.get("pdfs"))
+    nb_pref = sum(1 for r in resultats if not r.get("commune")); nb_com = sum(1 for r in resultats if r.get("commune"))
+    seuil24 = (NOW - dt.timedelta(hours=24)).strftime("%Y-%m-%d %H:%M")
+    etat_public = {"derniere_execution": PARIS.strftime("%Y-%m-%d %H:%M"), "fuseau": "Europe/Paris", "prefectures": nb_pref, "communes": nb_com, "sites_joints": joints,
+                   "detectes_passage": len(nouveaux), "detectes_24h": sum(1 for i in items if (i.get("detecte_le") or "") >= seuil24),
+                   "total_veille": len(items), "source": "github-actions", "frequence_minutes": 30}
+    try: journal = json.loads(get(f"{SITE}/data/journal-public.json") or "[]")
+    except Exception: journal = []
+    if not isinstance(journal, list): journal = []
+    evts = [{"quand": PARIS.strftime("%Y-%m-%d %H:%M"), "type": "passage", "texte": f"Passage de veille : {joints} sites joints sur {len(resultats)} ({nb_pref} préfectures, {nb_com} communes), {len(nouveaux)} acte{'s' if len(nouveaux) > 1 else ''} relevé{'s' if len(nouveaux) > 1 else ''}."}]
+    for it in [n for n in nouveaux if n.get("contestable", True)][:20]:
+        lieu = it.get("commune") or f"département {it['departement']}"
+        evts.append({"quand": PARIS.strftime("%Y-%m-%d %H:%M"), "type": "detection", "texte": f"Acte relevé, {lieu} : {it['titre'][:140]}", "url": it.get("url", "")})
+    journal = (evts + journal)[:400]
     notifier_site([n for n in nouveaux if n.get("contestable", True)])
     for it in [n for n in nouveaux if n.get("contestable", True)][:10]:
         notifier(f"Dép. {it['departement']} : {it['titre'][:80]}", (it["resume"] or it["flux"])[:300], it["url"])
     if not FTP_HOST:
         log("FTP non configuré : résultats écrits localement dans sortie/"); os.makedirs("sortie", exist_ok=True)
-        for n, o in (("veille.json", etat), ("veille-public.json", public), ("arretes.json", registre)):
+        pub = [{k: v for k, v in r.items() if k not in ("analyse", "fiche", "voie", "fin", "statut", "detecte_le", "publie")} for r in registre if r.get("publie", True)]
+        for n, o in (("veille.json", etat), ("veille-public.json", public), ("arretes.json", registre), ("arretes-public.json", pub), ("etat-veille.json", etat_public), ("journal-public.json", journal)):
             open(f"sortie/{n}", "w", encoding="utf-8").write(json.dumps(o, ensure_ascii=False, indent=2))
         return
     f = ftp_connect()
     if not f: sys.exit("Connexion FTP impossible")
     f.cwd(FTP_DIR + "/data")
-    for n, o in (("veille.json", etat), ("veille-public.json", public), ("arretes.json", registre)):
+    pub = [{k: v for k, v in r.items() if k not in ("analyse", "fiche", "voie", "fin", "statut", "detecte_le", "publie")} for r in registre if r.get("publie", True)]
+    for n, o in (("veille.json", etat), ("veille-public.json", public), ("arretes.json", registre), ("arretes-public.json", pub), ("etat-veille.json", etat_public), ("journal-public.json", journal)):
         ftp_put(f, n, (json.dumps(o, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
     f.quit(); log("Envoyé sur le site.")
 

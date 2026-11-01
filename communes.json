@@ -1,0 +1,244 @@
+[
+ {
+  "commune": "Paris",
+  "departement": "75",
+  "autorite": "Maire de Paris",
+  "url": "https://www.paris.fr/bmo",
+  "urls_secondaires": [
+   "https://bovp.apps.paris.fr/"
+  ],
+  "type": "pdf_direct",
+  "rss": "",
+  "note": "VÉRIFIÉ 01/11/2026 : portail BOVP fermé (alerte cybersécurité), listes quotidiennes en PDF sur cdn.paris.fr depuis paris.fr/bmo"
+ },
+ {
+  "commune": "Marseille",
+  "departement": "13",
+  "autorite": "Maire de Marseille",
+  "url": "https://www.marseille.fr/mairie/conseil-municipal/recueil-des-actes-administratifs",
+  "urls_secondaires": [],
+  "type": "portail_js",
+  "rss": "",
+  "note": "VÉRIFIÉ 01/11/2026 : page bloquée aux robots (JS et cookies exigés) ; lecture par navigateur invisible seulement"
+ },
+ {
+  "commune": "Lyon",
+  "departement": "69",
+  "autorite": "Maire de Lyon",
+  "url": "https://lyon-webdelib.digitechcloud.fr/webdelibplus_Central/jsp/seances.jsp?role=usager",
+  "urls_secondaires": [
+   "https://www.lyon.fr/vie-municipale/actes-et-seances"
+  ],
+  "type": "portail_js",
+  "rss": "",
+  "note": "VÉRIFIÉ 01/11/2026 : lyon.fr renvoie au portail Webdelib (délibérations surtout, BMO arrêté à 2022) ; faible rendement attendu"
+ },
+ {
+  "commune": "Toulouse",
+  "departement": "31",
+  "autorite": "Maire de Toulouse",
+  "url": "https://metropole.toulouse.fr/demarches/consulter-un-arrete-municipal",
+  "urls_secondaires": [
+   "https://deliberations.toulouse.fr/?p=recherche&nomDuSite=1"
+  ],
+  "type": "portail_js",
+  "rss": "",
+  "note": "VÉRIFIÉ 01/11/2026 : page refusée aux robots (erreur client) ; navigateur invisible"
+ },
+ {
+  "commune": "Nice",
+  "departement": "06",
+  "autorite": "Maire de Nice",
+  "url": "https://publiciteactes.nicecotedazur.org/PubActes/Accueil.aspx?c=VDN",
+  "urls_secondaires": [
+   "https://publiciteactes.nicecotedazur.org/PubActes/Accueil.aspx?c=VDN"
+  ],
+  "type": "portail_js",
+  "rss": "",
+  "note": "VÉRIFIÉ 01/11/2026 : nice.fr renvoie au portail Publicité des actes (ASP.NET) ; RAA mensuel derrière authentification"
+ },
+ {
+  "commune": "Nantes",
+  "departement": "44",
+  "autorite": "Maire de Nantes",
+  "url": "https://metropole.nantes.fr/ma-ville-ma-metropole/nantes-et-ses-11-quartiers/la-ville-de-nantes-comment-ca-marche/les-actes-reglementaires-de-la-ville-de-nantes",
+  "urls_secondaires": [],
+  "type": "pdf_direct",
+  "rss": "",
+  "note": "VÉRIFIÉ 01/11/2026 : PDF directs, dossier ARRETES DE POLICE par année/mois (liste visible jusqu'à 2024, dossiers 2025-2026 à explorer)"
+ },
+ {
+  "commune": "Montpellier",
+  "departement": "34",
+  "autorite": "Maire de Montpellier",
+  "url": "https://actes-administratifs.montpellier.fr/actes?q=%2A&typeSeance=%2A&seanceDate=",
+  "urls_secondaires": [
+   "https://www.montpellier.fr/institutions/publication-des-actes-administratifs-ville"
+  ],
+  "type": "portail_js",
+  "rss": "",
+  "note": "VÉRIFIÉ 01/11/2026 : page refusée aux robots (erreur client) ; navigateur invisible"
+ },
+ {
+  "commune": "Strasbourg",
+  "departement": "67",
+  "autorite": "Maire de Strasbourg",
+  "url": "https://data.strasbourg.eu/api/explore/v2.1/catalog/datasets/publiactes/records?order_by=-date_publication&limit=100",
+  "urls_secondaires": [
+   "https://data.strasbourg.eu/explore/dataset/publiactes/"
+  ],
+  "type": "api_json",
+  "rss": "",
+  "note": "Open data Opendatasoft (JSON) ; PDF sur sig.strasbourg.eu"
+ },
+ {
+  "commune": "Bordeaux",
+  "departement": "33",
+  "autorite": "Maire de Bordeaux",
+  "url": "https://opendata.bordeaux-metropole.fr/api/explore/v2.1/catalog/datasets/bor_affichage-reglementaire/records?limit=100",
+  "urls_secondaires": [
+   "https://www.bordeaux.fr/publication-des-actes-de-la-ville-de-bordeaux"
+  ],
+  "type": "api_json",
+  "rss": "",
+  "note": "Open data Opendatasoft (JSON)"
+ },
+ {
+  "commune": "Lille",
+  "departement": "59",
+  "autorite": "Maire de Lille",
+  "url": "https://www.lille.fr/Votre-Mairie/Le-conseil-municipal/Les-arretes-et-deliberations",
+  "urls_secondaires": [],
+  "type": "pdf_direct",
+  "rss": "",
+  "note": "VÉRIFIÉ 01/11/2026 : bulletins BO VDL quasi quotidiens en PDF direct (dernier 20/10/2026)"
+ },
+ {
+  "commune": "Rennes",
+  "departement": "35",
+  "autorite": "Maire de Rennes",
+  "url": "https://actes.rennes.fr/public/14?filters=14",
+  "urls_secondaires": [],
+  "type": "portail_js",
+  "rss": "",
+  "note": "VÉRIFIÉ 01/11/2026 : robots.txt interdit l'accès automatisé ; navigateur invisible, rendement incertain"
+ },
+ {
+  "commune": "Reims",
+  "departement": "51",
+  "autorite": "Maire de Reims",
+  "url": "https://www.reims.fr/",
+  "urls_secondaires": [],
+  "type": "inconnu",
+  "rss": "",
+  "note": "NON TROUVÉ 01/11/2026 : page des arrêtés introuvable ; à renseigner si tu as l'URL"
+ },
+ {
+  "commune": "Toulon",
+  "departement": "83",
+  "autorite": "Maire de Toulon",
+  "url": "https://toulon.fr/publicite-des-actes-administratifs",
+  "urls_secondaires": [
+   "https://publications.toulon.fr/"
+  ],
+  "type": "pdf_direct",
+  "rss": "",
+  "note": "VÉRIFIÉ 01/11/2026 : PDF directs section Les arrêtés (publication irrégulière, dernier mars 2026)"
+ },
+ {
+  "commune": "Saint-Étienne",
+  "departement": "42",
+  "autorite": "Maire de Saint-Étienne",
+  "url": "https://publi-actes.saint-etienne.fr/",
+  "urls_secondaires": [],
+  "type": "portail_js",
+  "rss": "",
+  "note": "VÉRIFIÉ 01/11/2026 : application Ulys Soft chargée en JS, délibérations en tête ; filtre Arrêté à activer par navigateur"
+ },
+ {
+  "commune": "Le Havre",
+  "departement": "76",
+  "autorite": "Maire du Havre",
+  "url": "https://deliberations.lehavre.fr/",
+  "urls_secondaires": [],
+  "type": "portail_js",
+  "rss": "",
+  "note": "VÉRIFIÉ 01/11/2026 : robots.txt interdit l'accès automatisé ; portail de délibérations, rendement incertain"
+ },
+ {
+  "commune": "Grenoble",
+  "departement": "38",
+  "autorite": "Maire de Grenoble",
+  "url": "https://cloud.grenoblealpesmetropole.fr/index.php/s/5pAn4DSQakKCzeT",
+  "urls_secondaires": [
+   "https://cloud.grenoblealpesmetropole.fr/index.php/s/9MY8dTCRCe2ezEQ"
+  ],
+  "type": "portail_js",
+  "rss": "",
+  "note": "VÉRIFIÉ 01/11/2026 : partages Nextcloud (arrêtés Ville, et arrêtés de la préfecture de l'Isère en second lien) ; listing par navigateur"
+ },
+ {
+  "commune": "Dijon",
+  "departement": "21",
+  "autorite": "Maire de Dijon",
+  "url": "https://eservices.dijon.fr/Pages/Deliberations/Recherche-actes.aspx",
+  "urls_secondaires": [
+   "https://www.dijon.fr/la-vie-municipale/le-conseil-municipal/deliberations-arretes-proces-verbaux/"
+  ],
+  "type": "portail_js",
+  "rss": "",
+  "note": "VÉRIFIÉ 01/11/2026 : recherche ASP.NET sans résultat sans filtres ; rendement faible"
+ },
+ {
+  "commune": "Angers",
+  "departement": "49",
+  "autorite": "Maire d'Angers",
+  "url": "https://www.angers.fr/l-action-municipale/publication-electronique-des-actes/index.html",
+  "urls_secondaires": [],
+  "type": "recueil_mensuel",
+  "rss": "",
+  "note": "VÉRIFIÉ 01/11/2026 : recueils mensuels PDF (arrêtés affaires générales octobre 2026, 20 Mo)"
+ },
+ {
+  "commune": "Nîmes",
+  "departement": "30",
+  "autorite": "Maire de Nîmes",
+  "url": "https://www.nimes.fr/ma-ville/actes-administratifs/arretes",
+  "urls_secondaires": [],
+  "type": "pdf_direct",
+  "rss": "",
+  "note": "VÉRIFIÉ 01/11/2026 : tableau avec PDF directs, publication continue (dernier 27/10/2026)"
+ },
+ {
+  "commune": "Clermont-Ferrand",
+  "departement": "63",
+  "autorite": "Maire de Clermont-Ferrand",
+  "url": "https://clermont-ferrand.fr/2026",
+  "urls_secondaires": [
+   "https://clermont-ferrand.fr/publication-des-actes-administratifs-reglementaires"
+  ],
+  "type": "pdf_direct",
+  "rss": "",
+  "note": "VÉRIFIÉ 01/11/2026 : page par année, PDF directs par arrêté (dernier 30/10/2026)"
+ },
+ {
+  "commune": "Fréjus",
+  "departement": "83",
+  "autorite": "Maire de Fréjus",
+  "url": "https://www.ville-frejus.fr/mairie/vie-municipale/arretes-actes-administratifs/",
+  "urls_secondaires": [],
+  "type": "liste_paginee",
+  "rss": "",
+  "note": "VÉRIFIÉ 01/11/2026 : liste avec PDF directs, publication quotidienne (dernier 30/10/2026), suite chargée en JS"
+ },
+ {
+  "commune": "Saint-Raphaël",
+  "departement": "83",
+  "autorite": "Maire de Saint-Raphaël",
+  "url": "https://www.ville-saintraphael.fr/mairie/publication-des-actes/actes-de-la-ville",
+  "urls_secondaires": [],
+  "type": "inconnu",
+  "rss": "",
+  "note": "VÉRIFIÉ 01/11/2026 : site refuse les robots (erreur client) ; navigateur invisible, sinon à alimenter par signalement"
+ }
+]
